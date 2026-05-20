@@ -2,6 +2,8 @@
 *.tif
 *.tiff
 *.zip
+*.pdf
+*.odt
 
 # Tile image directories. These contain many generated 256x256 files.
 /tiles/
