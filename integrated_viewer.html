@@ -1,0 +1,1264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>統合マップビューア - 4レイヤー対応</title>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            overflow: hidden;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .canvas-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: move;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            min-width: 280px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+        }
+        
+        .controls h3 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 8px;
+        }
+        
+        .layer-control {
+            margin: 15px 0;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 5px;
+            border-left: 4px solid #ccc;
+        }
+        
+        .layer-control.active {
+            border-left-color: #4CAF50;
+            background: #e8f5e9;
+        }
+        
+        .layer-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .layer-header input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 10px;
+            cursor: pointer;
+        }
+        
+        .layer-header label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            cursor: pointer;
+            flex: 1;
+        }
+        
+        .opacity-control {
+            margin-top: 8px;
+        }
+        
+        .opacity-control label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .opacity-control input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+        }
+        
+        .opacity-value {
+            font-weight: 600;
+            color: #4CAF50;
+        }
+        
+        .zoom-controls {
+            margin: 15px 0;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        
+        .zoom-controls label {
+            display: block;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        #zoom-slider {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 5px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            background: #4CAF50;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        #show-license {
+            background: #2196F3;
+        }
+        
+        #show-license:hover {
+            background: #1976D2;
+        }
+        
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-family: monospace;
+            color: #333;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            max-width: 300px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        
+        .legend h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .legend-section {
+            margin: 15px 0;
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 5px;
+            border-left: 3px solid #4CAF50;
+        }
+        
+        .legend-section:first-child {
+            margin-top: 0;
+        }
+        
+        .legend-title {
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 13px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+            font-size: 11px;
+        }
+        
+        .legend-color {
+            width: 18px;
+            height: 18px;
+            border: 1px solid #ccc;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+        
+        .legend-gradient {
+            width: 100%;
+            height: 20px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            margin: 5px 0;
+        }
+        
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #666;
+        }
+        
+        .preset-buttons {
+            margin: 15px 0;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        
+        .preset-buttons h4 {
+            margin: 0 0 10px 0;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .preset-buttons button {
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        
+        .coordinate-display {
+            margin: 15px 0;
+            padding: 12px;
+            background: #e3f2fd;
+            border-radius: 5px;
+            border-left: 4px solid #2196F3;
+            font-size: 12px;
+        }
+        
+        .coordinate-display h4 {
+            margin: 0 0 10px 0;
+            font-size: 13px;
+            color: #1976D2;
+        }
+        
+        .coordinate-item {
+            margin: 5px 0;
+            color: #333;
+        }
+        
+        .coordinate-label {
+            display: inline-block;
+            width: 80px;
+            color: #666;
+        }
+        
+        .coordinate-value {
+            font-weight: bold;
+            color: #1976D2;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas-base" class="canvas-layer"></canvas>
+        <canvas id="canvas-elevation-gray" class="canvas-layer"></canvas>
+        <canvas id="canvas-elevation-color" class="canvas-layer"></canvas>
+        <canvas id="canvas-landcover" class="canvas-layer"></canvas>
+        <canvas id="canvas-vegetation" class="canvas-layer"></canvas>
+        <canvas id="canvas-marker" class="canvas-layer" style="pointer-events: none;"></canvas>
+    </div>
+    
+    <div class="controls">
+        <h3>🗺️ 統合マップビューア</h3>
+        
+        <div class="zoom-controls">
+            <label>ズームレベル: <span id="zoom-label">1</span></label>
+            <input type="range" id="zoom-slider" min="1" max="9" value="1" step="1">
+            <div class="button-group">
+                <button id="zoom-in">+</button>
+                <button id="zoom-out">-</button>
+                <button id="reset">リセット</button>
+            </div>
+        </div>
+        
+        <div style="margin: 15px 0;">
+            <button id="show-license" style="width: 100%; background: #2196F3;">📖 解説とライセンス</button>
+        </div>
+        
+        <div style="margin: 15px 0; padding: 10px; background: #f5f5f5; border-radius: 5px;">
+            <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #666;">座標検証（主要都市）</h4>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                <button id="goto-tokyo" style="font-size: 11px; padding: 5px;">東京</button>
+                <button id="goto-london" style="font-size: 11px; padding: 5px;">ロンドン</button>
+                <button id="goto-newyork" style="font-size: 11px; padding: 5px;">NY</button>
+                <button id="goto-sydney" style="font-size: 11px; padding: 5px;">シドニー</button>
+            </div>
+            <button id="clear-marker" style="width: 100%; margin-top: 8px; font-size: 11px; padding: 5px; background: #ff9800;">❌ マーカーを消す</button>
+            
+            <div style="margin-top: 10px; padding: 8px; background: #e3f2fd; border-radius: 5px;">
+                <h4 style="margin: 0 0 5px 0; font-size: 11px;">📍 座標を指定してジャンプ</h4>
+                <div style="display: grid; grid-template-columns: auto 1fr auto; gap: 5px; align-items: center; margin-bottom: 3px;">
+                    <label style="font-size: 10px;">経度:</label>
+                    <input type="number" id="manual-lon" value="0" step="0.01" style="width: 100%; font-size: 10px; padding: 2px;">
+                    <span style="font-size: 10px;">°</span>
+                </div>
+                <div style="display: grid; grid-template-columns: auto 1fr auto; gap: 5px; align-items: center; margin-bottom: 3px;">
+                    <label style="font-size: 10px;">緯度:</label>
+                    <input type="number" id="manual-lat" value="51" step="0.01" style="width: 100%; font-size: 10px; padding: 2px;">
+                    <span style="font-size: 10px;">°</span>
+                </div>
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 5px; align-items: center; margin-bottom: 5px;">
+                    <label style="font-size: 10px;">レベル:</label>
+                    <input type="number" id="manual-zoom" value="1" min="0" max="9" style="width: 100%; font-size: 10px; padding: 2px;">
+                </div>
+                <button id="goto-manual" style="width: 100%; font-size: 10px; padding: 5px; background: #2196F3; color: white; border: none; border-radius: 3px; cursor: pointer;">🎯 この座標にジャンプ</button>
+            </div>
+        </div>
+        
+        <div style="margin: 15px 0; padding: 10px; background: #fff3cd; border-radius: 5px; border: 1px solid #ffc107;">
+            <h4 style="margin: 0 0 8px 0; font-size: 12px; color: #856404;">🔧 座標補正（実験的）</h4>
+            <div style="font-size: 11px; margin-bottom: 8px; color: #666;">
+                ズームレベルで位置がずれる場合、緯度範囲を調整してください
+            </div>
+            <div style="display: grid; grid-template-columns: auto 1fr auto; gap: 5px; align-items: center; margin-bottom: 5px;">
+                <label style="font-size: 11px;">北端:</label>
+                <input type="number" id="lat-max" value="90" step="0.1" style="width: 100%; font-size: 11px; padding: 3px;">
+                <span style="font-size: 11px;">°</span>
+            </div>
+            <div style="display: grid; grid-template-columns: auto 1fr auto; gap: 5px; align-items: center; margin-bottom: 8px;">
+                <label style="font-size: 11px;">南端:</label>
+                <input type="number" id="lat-min" value="-90" step="0.1" style="width: 100%; font-size: 11px; padding: 3px;">
+                <span style="font-size: 11px;">°</span>
+            </div>
+            <button id="apply-lat-range" style="width: 100%; font-size: 11px; padding: 5px; background: #ffc107;">適用して再描画</button>
+            <div style="margin-top: 8px; font-size: 10px; color: #666;">
+                リセット: <button onclick="document.getElementById('lat-max').value=90; document.getElementById('lat-min').value=-90; document.getElementById('apply-lat-range').click();" style="font-size: 9px; padding: 2px 5px;">±90° (デフォルト)</button>
+            </div>
+        </div>
+        
+        <div class="preset-buttons">
+            <h4>プリセット</h4>
+            <button id="preset-elevation" style="width: 100%;">標高分析</button>
+            <button id="preset-landuse" style="width: 100%;">土地利用分析</button>
+            <button id="preset-terrain" style="width: 100%;">地形+植生</button>
+            <button id="preset-all" style="width: 100%;">全て表示</button>
+        </div>
+        
+        <div class="coordinate-display">
+            <h4>📍 クリック位置</h4>
+            <div class="coordinate-item">
+                <span class="coordinate-label">座標 (X, Y):</span>
+                <span class="coordinate-value" id="coord-xy">クリックしてください</span>
+            </div>
+            <div class="coordinate-item">
+                <span class="coordinate-label">経度:</span>
+                <span class="coordinate-value" id="coord-lon">-</span>
+            </div>
+            <div class="coordinate-item">
+                <span class="coordinate-label">緯度:</span>
+                <span class="coordinate-value" id="coord-lat">-</span>
+            </div>
+            <div style="margin-top: 8px; font-size: 10px; color: #666;">
+                ※ 座標精度: ±0.004° (約500m)<br>
+                元データ解像度: 15秒角
+            </div>
+        </div>
+        
+        <div style="margin-top: 10px; background: rgba(255,255,200,0.95); padding: 10px; border-radius: 5px; font-size: 10px; font-family: 'Courier New', monospace;">
+            <strong style="color: #c00;">🔍 デバッグ情報</strong>
+            <div id="debug-content" style="margin-top: 5px; color: #333;">クリックで詳細表示</div>
+        </div>
+        
+        <div class="layer-control active" id="layer-gray">
+            <div class="layer-header">
+                <input type="checkbox" id="check-gray" checked>
+                <label for="check-gray">標高（モノクロ）</label>
+            </div>
+            <div class="opacity-control">
+                <label>透明度: <span class="opacity-value" id="opacity-gray-value">100%</span></label>
+                <input type="range" id="opacity-gray" min="0" max="100" value="100" step="1">
+            </div>
+        </div>
+        
+        <div class="layer-control" id="layer-color">
+            <div class="layer-header">
+                <input type="checkbox" id="check-color">
+                <label for="check-color">標高（カラー段彩）</label>
+            </div>
+            <div class="opacity-control">
+                <label>透明度: <span class="opacity-value" id="opacity-color-value">80%</span></label>
+                <input type="range" id="opacity-color" min="0" max="100" value="80" step="1">
+            </div>
+        </div>
+        
+        <div class="layer-control" id="layer-landcover">
+            <div class="layer-header">
+                <input type="checkbox" id="check-landcover">
+                <label for="check-landcover">土地被覆</label>
+            </div>
+            <div class="opacity-control">
+                <label>透明度: <span class="opacity-value" id="opacity-landcover-value">70%</span></label>
+                <input type="range" id="opacity-landcover" min="0" max="100" value="70" step="1">
+            </div>
+        </div>
+        
+        <div class="layer-control" id="layer-vegetation">
+            <div class="layer-header">
+                <input type="checkbox" id="check-vegetation">
+                <label for="check-vegetation">植生</label>
+            </div>
+            <div class="opacity-control">
+                <label>透明度: <span class="opacity-value" id="opacity-vegetation-value">70%</span></label>
+                <input type="range" id="opacity-vegetation" min="0" max="100" value="70" step="1">
+            </div>
+        </div>
+    </div>
+    
+    <div class="info" id="info">
+        ズーム: 1 | タイル: 2×1 | 読み込み: 0/0
+    </div>
+    
+    <div class="legend">
+        <h4>凡例</h4>
+        
+        <div class="legend-section" id="legend-gray" style="display: block;">
+            <div class="legend-title">標高（モノクロ）</div>
+            <div class="legend-gradient" style="background: linear-gradient(to right, #000 0%, #fff 100%);"></div>
+            <div class="legend-labels">
+                <span>低地</span>
+                <span>高地</span>
+            </div>
+        </div>
+        
+        <div class="legend-section" id="legend-color" style="display: none;">
+            <div class="legend-title">標高（カラー段彩）</div>
+            <div class="legend-gradient" style="background: linear-gradient(to right, 
+                rgb(0,128,0) 0%, 
+                rgb(100,150,50) 12%, 
+                rgb(200,200,100) 25%, 
+                rgb(220,180,100) 37%, 
+                rgb(200,150,100) 50%, 
+                rgb(150,100,50) 62%, 
+                rgb(120,80,60) 75%, 
+                rgb(100,50,0) 87%, 
+                rgb(255,255,255) 100%);"></div>
+            <div class="legend-labels">
+                <span>0m</span>
+                <span>2,250m</span>
+                <span>4,500m</span>
+                <span>6,750m</span>
+                <span>9,000m</span>
+            </div>
+        </div>
+        
+        <div class="legend-section" id="legend-landcover" style="display: none;">
+            <div class="legend-title">土地被覆分類（20分類）</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(0,100,0)"></div>1. 常緑広葉樹林</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(0,150,0)"></div>2. 落葉広葉樹林</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(50,200,50)"></div>3. 常緑針葉樹林</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(100,200,100)"></div>4. 落葉針葉樹林</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(150,200,150)"></div>5. 混交林</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(200,200,0)"></div>6. 樹木開放地</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(255,255,100)"></div>7. 低木地</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(255,200,100)"></div>8. 草本</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(200,150,100)"></div>9. 草本/低木混合</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(255,255,0)"></div>10. 疎植生</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(255,100,100)"></div>11. 農地</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(220,220,100)"></div>12. 水田</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(200,100,50)"></div>13. 農地混合</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(150,150,150)"></div>14. マングローブ</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(200,200,200)"></div>15. 湿地</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(180,180,180)"></div>16. 裸地</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(255,255,255)"></div>17. 都市</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(200,255,255)"></div>18. 雪氷</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(100,150,200)"></div>19. 水域</div>
+            <div class="legend-item"><div class="legend-color" style="background: rgb(50,100,150)"></div>20. 海</div>
+        </div>
+        
+        <div class="legend-section" id="legend-vegetation" style="display: none;">
+            <div class="legend-title">植生指標</div>
+            <div class="legend-gradient" style="background: linear-gradient(to bottom, 
+                rgb(0,100,0) 0%, 
+                rgb(50,150,50) 20%, 
+                rgb(100,200,100) 40%, 
+                rgb(150,200,100) 60%, 
+                rgb(200,180,100) 80%, 
+                rgb(200,150,100) 100%); height: 100px;"></div>
+            <div style="margin-top: 8px;">
+                <div style="font-size: 11px; color: #333; margin: 3px 0;">▲ 高植生 (100) - 濃い緑</div>
+                <div style="font-size: 11px; color: #666; margin: 3px 0 3px 20px;">豊かな植生</div>
+                <div style="font-size: 11px; color: #333; margin: 8px 0 3px 0;">│ 中程度 (50) - 黄緑</div>
+                <div style="font-size: 11px; color: #666; margin: 3px 0 3px 20px;">草地・疎林</div>
+                <div style="font-size: 11px; color: #333; margin: 8px 0 3px 0;">▼ 低植生 (1) - 茶色</div>
+                <div style="font-size: 11px; color: #666; margin: 3px 0 3px 20px;">裸地に近い</div>
+            </div>
+            <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #ddd;">
+                <div class="legend-item"><div class="legend-color" style="background: rgb(180,180,180)"></div>データなし</div>
+                <div class="legend-item"><div class="legend-color" style="background: rgb(50,100,150)"></div>海</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // キャンバス要素とコンテキスト
+        const canvases = {
+            base: document.getElementById('canvas-base'),
+            gray: document.getElementById('canvas-elevation-gray'),
+            color: document.getElementById('canvas-elevation-color'),
+            landcover: document.getElementById('canvas-landcover'),
+            vegetation: document.getElementById('canvas-vegetation'),
+            marker: document.getElementById('canvas-marker')
+        };
+        
+        const contexts = {
+            base: canvases.base.getContext('2d'),
+            gray: canvases.gray.getContext('2d'),
+            color: canvases.color.getContext('2d'),
+            landcover: canvases.landcover.getContext('2d'),
+            vegetation: canvases.vegetation.getContext('2d'),
+            marker: canvases.marker.getContext('2d')
+        };
+        
+        const container = document.getElementById('container');
+        const info = document.getElementById('info');
+        const zoomSlider = document.getElementById('zoom-slider');
+        const zoomLabel = document.getElementById('zoom-label');
+        
+        const TILE_SIZE = 256;
+        let currentZoom = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+        let isDragging = false;
+        let lastX = 0;
+        let lastY = 0;
+        
+        // マーカー表示用
+        let showMarker = false;
+        let markerLongitude = 0;
+        let markerLatitude = 0;
+        let markerCityName = '';
+        
+        // 座標系パラメータ
+        // 元データの緯度範囲
+        let LAT_MAX = 90;  // 北端の緯度
+        let LAT_MIN = -90; // 南端の緯度
+        
+        // レイヤー設定
+        const layers = {
+            gray: {
+                enabled: true,
+                opacity: 1.0,
+                path: 'tiles_8bit',
+                cache: new Map()
+            },
+            color: {
+                enabled: false,
+                opacity: 0.8,
+                path: 'tiles_color',
+                cache: new Map()
+            },
+            landcover: {
+                enabled: false,
+                opacity: 0.7,
+                path: 'gm_lc',
+                cache: new Map()
+            },
+            vegetation: {
+                enabled: false,
+                opacity: 0.7,
+                path: 'gm_ve',
+                cache: new Map()
+            }
+        };
+        
+        // タイル数を取得（アスペクト比2:1）
+        function getTileCount(zoom) {
+            const tilesX = Math.pow(2, zoom);
+            const tilesY = zoom === 0 ? 1 : Math.pow(2, zoom - 1);
+            return { tilesX, tilesY };
+        }
+        
+        // キャンバスサイズを調整
+        function resizeCanvas() {
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            Object.values(canvases).forEach(canvas => {
+                canvas.width = width;
+                canvas.height = height;
+            });
+            
+            if (offsetX === 0 && offsetY === 0) {
+                const { tilesX, tilesY } = getTileCount(currentZoom);
+                offsetX = (width - tilesX * TILE_SIZE) / 2;
+                offsetY = (height - tilesY * TILE_SIZE) / 2;
+            }
+            
+            drawAllLayers();
+        }
+        
+        // タイルを読み込む
+        function loadTile(layerName, zoom, x, y) {
+            const layer = layers[layerName];
+            const key = `${zoom}/${x}/${y}`;
+            
+            if (layer.cache.has(key)) {
+                return layer.cache.get(key);
+            }
+            
+            const img = new Image();
+            const promise = new Promise((resolve, reject) => {
+                img.onload = () => resolve(img);
+                img.onerror = () => resolve(null);
+            });
+            
+            img.src = `${layer.path}/${zoom}/${x}/${y}.png`;
+            layer.cache.set(key, promise);
+            
+            return promise;
+        }
+        
+        // レイヤーを描画
+        async function drawLayer(layerName) {
+            const layer = layers[layerName];
+            const ctx = contexts[layerName];
+            const canvas = canvases[layerName];
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (!layer.enabled) return;
+            
+            ctx.globalAlpha = layer.opacity;
+            
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            
+            for (let y = 0; y < tilesY; y++) {
+                for (let x = 0; x < tilesX; x++) {
+                    const screenX = offsetX + x * TILE_SIZE;
+                    const screenY = offsetY + y * TILE_SIZE;
+                    
+                    if (screenX + TILE_SIZE >= 0 && screenX < canvas.width &&
+                        screenY + TILE_SIZE >= 0 && screenY < canvas.height) {
+                        
+                        const tilePromise = loadTile(layerName, currentZoom, x, y);
+                        tilePromise.then(img => {
+                            if (img && layer.enabled) {
+                                ctx.globalAlpha = layer.opacity;
+                                ctx.drawImage(img, screenX, screenY, TILE_SIZE, TILE_SIZE);
+                            }
+                        });
+                    }
+                }
+            }
+            
+            ctx.globalAlpha = 1.0;
+        }
+        
+        // 全レイヤーを描画
+        async function drawAllLayers() {
+            // ベース（背景）
+            contexts.base.fillStyle = '#1a1a1a';
+            contexts.base.fillRect(0, 0, canvases.base.width, canvases.base.height);
+            
+            // 各レイヤーを順番に描画
+            await drawLayer('gray');
+            await drawLayer('color');
+            await drawLayer('landcover');
+            await drawLayer('vegetation');
+            
+            // マーカーを描画
+            drawMarker();
+            
+            updateInfo();
+        }
+        
+        // マーカーを描画（中心点を示す赤い矢印）
+        function drawMarker() {
+            const ctx = contexts.marker;
+            ctx.clearRect(0, 0, canvases.marker.width, canvases.marker.height);
+            
+            if (!showMarker) return;
+            
+            // マーカー座標を計算
+            const { pixelX, pixelY } = latLonToPixel(markerLongitude, markerLatitude);
+            const screenX = pixelX + offsetX;
+            const screenY = pixelY + offsetY;
+            
+            // 画面外ならスキップ
+            if (screenX < -50 || screenX > canvases.marker.width + 50 ||
+                screenY < -50 || screenY > canvases.marker.height + 50) {
+                return;
+            }
+            
+            // 十字線を描画（計算座標の確認用）
+            ctx.save();
+            ctx.strokeStyle = '#00FF00';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            
+            // 縦線
+            ctx.beginPath();
+            ctx.moveTo(screenX, 0);
+            ctx.lineTo(screenX, canvases.marker.height);
+            ctx.stroke();
+            
+            // 横線
+            ctx.beginPath();
+            ctx.moveTo(0, screenY);
+            ctx.lineTo(canvases.marker.width, screenY);
+            ctx.stroke();
+            
+            ctx.restore();
+            
+            // 座標値を表示
+            ctx.save();
+            ctx.font = 'bold 12px monospace';
+            ctx.fillStyle = '#00FF00';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
+            const coordText = `(${Math.round(pixelX)}, ${Math.round(pixelY)})`;
+            ctx.strokeText(coordText, screenX + 10, screenY - 10);
+            ctx.fillText(coordText, screenX + 10, screenY - 10);
+            ctx.restore();
+            
+            // 下向き矢印を描画（先端が座標位置に来るように調整）
+            ctx.save();
+            ctx.translate(screenX, screenY);
+            
+            // 影
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.moveTo(2, -48);
+            ctx.lineTo(2, -16);
+            ctx.lineTo(-10, -16);
+            ctx.lineTo(2, 2);
+            ctx.lineTo(14, -16);
+            ctx.lineTo(2, -16);
+            ctx.closePath();
+            ctx.fill();
+            
+            // 赤い矢印本体
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.fillStyle = '#FF0000';
+            ctx.beginPath();
+            ctx.moveTo(0, -50);
+            ctx.lineTo(0, -18);
+            ctx.lineTo(-12, -18);
+            ctx.lineTo(0, 0);
+            ctx.lineTo(12, -18);
+            ctx.lineTo(0, -18);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.fill();
+            
+            // 中心点の円（先端＝座標位置）
+            ctx.beginPath();
+            ctx.arc(0, 0, 4, 0, Math.PI * 2);
+            ctx.fillStyle = '#FFFF00';
+            ctx.fill();
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.restore();
+            
+            ctx.save();
+            ctx.translate(screenX, screenY);
+            
+            // 都市名を矢印の上に表示
+            if (markerCityName) {
+                ctx.font = 'bold 16px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                
+                // テキストの背景（白い縁取り）
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 4;
+                ctx.strokeText(markerCityName, 0, -55);
+                
+                // テキスト本体（赤）
+                ctx.fillStyle = '#FF0000';
+                ctx.fillText(markerCityName, 0, -55);
+            }
+            
+            ctx.restore();
+        }
+        
+        // 情報表示を更新
+        function updateInfo() {
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            const total = tilesX * tilesY;
+            
+            let activeLayers = [];
+            if (layers.gray.enabled) activeLayers.push('標高(灰)');
+            if (layers.color.enabled) activeLayers.push('標高(色)');
+            if (layers.landcover.enabled) activeLayers.push('土地被覆');
+            if (layers.vegetation.enabled) activeLayers.push('植生');
+            
+            info.textContent = `ズーム: ${currentZoom} | タイル: ${tilesX}×${tilesY} (${total}個) | アクティブ: ${activeLayers.join(', ') || 'なし'}`;
+        }
+        
+        // 凡例の表示を更新
+        function updateLegendDisplay() {
+            // 各レイヤーの凡例セクションを表示/非表示
+            document.getElementById('legend-gray').style.display = layers.gray.enabled ? 'block' : 'none';
+            document.getElementById('legend-color').style.display = layers.color.enabled ? 'block' : 'none';
+            document.getElementById('legend-landcover').style.display = layers.landcover.enabled ? 'block' : 'none';
+            document.getElementById('legend-vegetation').style.display = layers.vegetation.enabled ? 'block' : 'none';
+        }
+        
+        // ズームレベルを変更
+        function setZoom(zoom, centerX = null, centerY = null) {
+            zoom = Math.max(1, Math.min(9, zoom));
+            
+            if (zoom === currentZoom) return;
+            
+            if (centerX === null) centerX = canvases.base.width / 2;
+            if (centerY === null) centerY = canvases.base.height / 2;
+            
+            const oldTiles = getTileCount(currentZoom);
+            const oldMapWidth = oldTiles.tilesX * TILE_SIZE;
+            const oldMapHeight = oldTiles.tilesY * TILE_SIZE;
+            
+            const normalizedX = (centerX - offsetX) / oldMapWidth;
+            const normalizedY = (centerY - offsetY) / oldMapHeight;
+            
+            currentZoom = zoom;
+            
+            const newTiles = getTileCount(zoom);
+            const newMapWidth = newTiles.tilesX * TILE_SIZE;
+            const newMapHeight = newTiles.tilesY * TILE_SIZE;
+            
+            offsetX = centerX - normalizedX * newMapWidth;
+            offsetY = centerY - normalizedY * newMapHeight;
+            
+            zoomSlider.value = zoom;
+            zoomLabel.textContent = zoom;
+            
+            drawAllLayers();
+        }
+        
+        // UIイベントハンドラ
+        zoomSlider.addEventListener('input', (e) => {
+            setZoom(parseInt(e.target.value));
+        });
+        
+        document.getElementById('zoom-in').addEventListener('click', () => {
+            setZoom(currentZoom + 1);
+        });
+        
+        document.getElementById('zoom-out').addEventListener('click', () => {
+            setZoom(currentZoom - 1);
+        });
+        
+        document.getElementById('reset').addEventListener('click', () => {
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            offsetX = (canvases.base.width - tilesX * TILE_SIZE) / 2;
+            offsetY = (canvases.base.height - tilesY * TILE_SIZE) / 2;
+            drawAllLayers();
+        });
+        
+        // 解説とライセンスボタン
+        document.getElementById('show-license').addEventListener('click', () => {
+            window.open('about_license.html', '_blank', 'width=1000,height=800,scrollbars=yes,resizable=yes');
+        });
+        
+        // 経度緯度からピクセル座標に変換
+        function latLonToPixel(longitude, latitude) {
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            const mapWidth = tilesX * TILE_SIZE;
+            const mapHeight = tilesY * TILE_SIZE;
+            
+            // 経度: -180° 〜 +180° → 0 〜 mapWidth
+            const pixelX = ((longitude + 180) / 360) * mapWidth;
+            
+            // 緯度: LAT_MAX° 〜 LAT_MIN° → 0 〜 mapHeight
+            const latRange = LAT_MAX - LAT_MIN;
+            const pixelY = ((LAT_MAX - latitude) / latRange) * mapHeight;
+            
+            return { pixelX, pixelY };
+        }
+        
+        // 指定座標に移動
+        function goToLocation(longitude, latitude, cityName = '', zoomLevel = 5) {
+            // マーカーを表示
+            showMarker = true;
+            markerLongitude = longitude;
+            markerLatitude = latitude;
+            markerCityName = cityName;
+            
+            setZoom(zoomLevel);
+            
+            // 座標に移動するため、次のフレームで実行
+            setTimeout(() => {
+                const { pixelX, pixelY } = latLonToPixel(longitude, latitude);
+                
+                // 画面中央に表示
+                offsetX = (canvases.base.width / 2) - pixelX;
+                offsetY = (canvases.base.height / 2) - pixelY;
+                
+                drawAllLayers();
+                
+                // 座標表示を更新
+                document.getElementById('coord-xy').textContent = `${Math.round(pixelX)}, ${Math.round(pixelY)}`;
+                document.getElementById('coord-lon').textContent = `${longitude.toFixed(4)}°`;
+                document.getElementById('coord-lat').textContent = `${latitude.toFixed(4)}°`;
+            }, 100);
+        }
+        
+        // 主要都市へのジャンプ
+        document.getElementById('goto-tokyo').addEventListener('click', () => {
+            goToLocation(139.6917, 35.6895, '東京'); // 東京
+        });
+        
+        document.getElementById('goto-london').addEventListener('click', () => {
+            goToLocation(-0.1276, 51.5074, 'ロンドン'); // ロンドン
+        });
+        
+        document.getElementById('goto-newyork').addEventListener('click', () => {
+            goToLocation(-74.0060, 40.7128, 'ニューヨーク'); // ニューヨーク
+        });
+        
+        document.getElementById('goto-sydney').addEventListener('click', () => {
+            goToLocation(151.2093, -33.8688, 'シドニー'); // シドニー
+        });
+        
+        // マーカーを消すボタン
+        document.getElementById('clear-marker').addEventListener('click', () => {
+            showMarker = false;
+            drawAllLayers();
+        });
+        
+        // 手動座標入力でジャンプ
+        document.getElementById('goto-manual').addEventListener('click', () => {
+            const lon = parseFloat(document.getElementById('manual-lon').value);
+            const lat = parseFloat(document.getElementById('manual-lat').value);
+            const zoom = parseInt(document.getElementById('manual-zoom').value);
+            
+            if (isNaN(lon) || isNaN(lat) || isNaN(zoom)) {
+                alert('有効な数値を入力してください');
+                return;
+            }
+            
+            if (lon < -180 || lon > 180 || lat < -90 || lat > 90) {
+                alert('経度: -180〜180°、緯度: -90〜90°の範囲で入力してください');
+                return;
+            }
+            
+            if (zoom < 0 || zoom > 9) {
+                alert('ズームレベル: 0〜9の範囲で入力してください');
+                return;
+            }
+            
+            goToLocation(lon, lat, `(${lon}°, ${lat}°)`, zoom);
+        });
+        
+        // 緯度範囲を適用して再描画
+        document.getElementById('apply-lat-range').addEventListener('click', () => {
+            const latMax = parseFloat(document.getElementById('lat-max').value);
+            const latMin = parseFloat(document.getElementById('lat-min').value);
+            
+            if (isNaN(latMax) || isNaN(latMin)) {
+                alert('有効な数値を入力してください');
+                return;
+            }
+            
+            if (latMax <= latMin) {
+                alert('北端は南端より大きい値にしてください');
+                return;
+            }
+            
+            LAT_MAX = latMax;
+            LAT_MIN = latMin;
+            
+            console.log(`緯度範囲を更新: ${LAT_MIN}° 〜 ${LAT_MAX}°`);
+            
+            // マーカーがある場合は再配置
+            if (showMarker) {
+                goToLocation(markerLongitude, markerLatitude, markerCityName, currentZoom);
+            } else {
+                drawAllLayers();
+            }
+        });
+        
+        // レイヤー制御
+        ['gray', 'color', 'landcover', 'vegetation'].forEach(layerName => {
+            const checkbox = document.getElementById(`check-${layerName}`);
+            const opacitySlider = document.getElementById(`opacity-${layerName}`);
+            const opacityValue = document.getElementById(`opacity-${layerName}-value`);
+            const layerControl = document.getElementById(`layer-${layerName}`);
+            
+            checkbox.addEventListener('change', (e) => {
+                layers[layerName].enabled = e.target.checked;
+                if (e.target.checked) {
+                    layerControl.classList.add('active');
+                } else {
+                    layerControl.classList.remove('active');
+                }
+                updateLegendDisplay();
+                drawAllLayers();
+            });
+            
+            opacitySlider.addEventListener('input', (e) => {
+                const value = parseInt(e.target.value);
+                layers[layerName].opacity = value / 100;
+                opacityValue.textContent = `${value}%`;
+                drawAllLayers();
+            });
+        });
+        
+        // プリセット
+        document.getElementById('preset-elevation').addEventListener('click', () => {
+            // カラー標高のみ
+            setLayerState('gray', false);
+            setLayerState('color', true, 100);
+            setLayerState('landcover', false);
+            setLayerState('vegetation', false);
+        });
+        
+        document.getElementById('preset-landuse').addEventListener('click', () => {
+            // モノクロ標高 + 土地被覆
+            setLayerState('gray', true, 100);
+            setLayerState('color', false);
+            setLayerState('landcover', true, 70);
+            setLayerState('vegetation', false);
+        });
+        
+        document.getElementById('preset-terrain').addEventListener('click', () => {
+            // モノクロ標高 + 植生
+            setLayerState('gray', true, 100);
+            setLayerState('color', false);
+            setLayerState('landcover', false);
+            setLayerState('vegetation', true, 70);
+        });
+        
+        document.getElementById('preset-all').addEventListener('click', () => {
+            // 全て表示
+            setLayerState('gray', true, 50);
+            setLayerState('color', true, 40);
+            setLayerState('landcover', true, 60);
+            setLayerState('vegetation', true, 60);
+        });
+        
+        function setLayerState(layerName, enabled, opacity = null) {
+            layers[layerName].enabled = enabled;
+            const checkbox = document.getElementById(`check-${layerName}`);
+            const layerControl = document.getElementById(`layer-${layerName}`);
+            checkbox.checked = enabled;
+            
+            if (enabled) {
+                layerControl.classList.add('active');
+            } else {
+                layerControl.classList.remove('active');
+            }
+            
+            if (opacity !== null) {
+                layers[layerName].opacity = opacity / 100;
+                const opacitySlider = document.getElementById(`opacity-${layerName}`);
+                const opacityValue = document.getElementById(`opacity-${layerName}-value`);
+                opacitySlider.value = opacity;
+                opacityValue.textContent = `${opacity}%`;
+            }
+            
+            updateLegendDisplay();
+            drawAllLayers();
+        }
+        
+        // ドラッグ処理とクリック処理
+        let clickStartX = 0;
+        let clickStartY = 0;
+        
+        container.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            clickStartX = e.clientX;
+            clickStartY = e.clientY;
+        });
+        
+        container.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const dx = e.clientX - lastX;
+                const dy = e.clientY - lastY;
+                
+                offsetX += dx;
+                offsetY += dy;
+                
+                lastX = e.clientX;
+                lastY = e.clientY;
+                
+                drawAllLayers();
+            }
+        });
+        
+        container.addEventListener('mouseup', (e) => {
+            // ドラッグとクリックを区別（移動量が5ピクセル未満ならクリック）
+            const moveDistance = Math.sqrt(
+                Math.pow(e.clientX - clickStartX, 2) + 
+                Math.pow(e.clientY - clickStartY, 2)
+            );
+            
+            if (moveDistance < 5) {
+                // クリックと判定
+                handleMapClick(e);
+            }
+            
+            isDragging = false;
+        });
+        
+        // 地図上の座標を経度緯度に変換
+        function pixelToLatLon(pixelX, pixelY) {
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            const mapWidth = tilesX * TILE_SIZE;
+            const mapHeight = tilesY * TILE_SIZE;
+            
+            // 経度: -180° 〜 +180°
+            const longitude = (pixelX / mapWidth) * 360 - 180;
+            
+            // 緯度: LAT_MAX° 〜 LAT_MIN° (上が北)
+            const latRange = LAT_MAX - LAT_MIN;
+            const latitude = LAT_MAX - (pixelY / mapHeight) * latRange;
+            
+            return { longitude, latitude };
+        }
+        
+        // マップクリックハンドラ
+        function handleMapClick(e) {
+            const rect = container.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            
+            // オフセットを考慮してマップ上の座標を計算
+            const mapX = clickX - offsetX;
+            const mapY = clickY - offsetY;
+            
+            // マップの範囲内かチェック
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            const mapWidth = tilesX * TILE_SIZE;
+            const mapHeight = tilesY * TILE_SIZE;
+            
+            if (mapX < 0 || mapX >= mapWidth || mapY < 0 || mapY >= mapHeight) {
+                // マップ範囲外
+                document.getElementById('coord-xy').textContent = '範囲外';
+                document.getElementById('coord-lon').textContent = '-';
+                document.getElementById('coord-lat').textContent = '-';
+                return;
+            }
+            
+            // 経度緯度に変換
+            const { longitude, latitude } = pixelToLatLon(mapX, mapY);
+            
+            // 座標を表示
+            document.getElementById('coord-xy').textContent = `${Math.round(mapX)}, ${Math.round(mapY)}`;
+            document.getElementById('coord-lon').textContent = `${longitude.toFixed(4)}°`;
+            document.getElementById('coord-lat').textContent = `${latitude.toFixed(4)}°`;
+            
+            // デバッグ情報を表示
+            const tileX = Math.floor(mapX / TILE_SIZE);
+            const tileY = Math.floor(mapY / TILE_SIZE);
+            const pixelInTileX = Math.floor(mapX % TILE_SIZE);
+            const pixelInTileY = Math.floor(mapY % TILE_SIZE);
+            
+            // タイルの地理範囲を計算
+            const tileLonMin = (tileX / tilesX) * 360 - 180;
+            const tileLonMax = ((tileX + 1) / tilesX) * 360 - 180;
+            const tileLatMax = 90 - (tileY / tilesY) * 180;
+            const tileLatMin = 90 - ((tileY + 1) / tilesY) * 180;
+            
+            // 元画像での切り出し範囲を計算
+            const BASE_WIDTH = 86400;
+            const BASE_HEIGHT = 43200;
+            const srcLeft = Math.round(((tileLonMin + 180) / 360) * BASE_WIDTH);
+            const srcRight = Math.round(((tileLonMax + 180) / 360) * BASE_WIDTH);
+            const srcTop = Math.round(((90 - tileLatMax) / 180) * BASE_HEIGHT);
+            const srcBottom = Math.round(((90 - tileLatMin) / 180) * BASE_HEIGHT);
+            
+            document.getElementById('debug-content').innerHTML = `
+ズームレベル: <strong>${currentZoom}</strong><br>
+マップサイズ: ${mapWidth} × ${mapHeight}px<br>
+<strong>クリック位置: (${Math.round(mapX)}, ${Math.round(mapY)})</strong><br>
+タイル座標: <strong>(${tileX}, ${tileY})</strong> / (${tilesX}, ${tilesY})<br>
+タイル内位置: (${pixelInTileX}, ${pixelInTileY})<br>
+<br>
+<span style="color: #00a;">タイルの地理範囲:</span><br>
+経度: ${tileLonMin.toFixed(6)}° 〜 ${tileLonMax.toFixed(6)}°<br>
+緯度: ${tileLatMin.toFixed(6)}° 〜 ${tileLatMax.toFixed(6)}°<br>
+<br>
+<span style="color: #a00;">元画像切り出し範囲:</span><br>
+X: ${srcLeft} 〜 ${srcRight} (幅 ${srcRight - srcLeft})<br>
+Y: ${srcTop} 〜 ${srcBottom} (高さ ${srcBottom - srcTop})<br>
+<br>
+<span style="color: #0a0;">クリック位置が範囲内:</span> ${
+    longitude >= tileLonMin && longitude <= tileLonMax && 
+    latitude >= tileLatMin && latitude <= tileLatMax ? '✓' : '✗'
+}
+            `.trim();
+        }
+        
+        container.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+        
+        // ホイールズーム
+        container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            
+            const rect = container.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            if (e.deltaY < 0) {
+                setZoom(currentZoom + 1, mouseX, mouseY);
+            } else {
+                setZoom(currentZoom - 1, mouseX, mouseY);
+            }
+        });
+        
+        // 初期化
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        updateLegendDisplay();
+        
+        console.log('統合マップビューアを初期化しました');
+        console.log('4レイヤー:', Object.keys(layers).join(', '));
+    </script>
+</body>
+</html>

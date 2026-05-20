@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>世界標高地図ビューア</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            max-width: 300px;
+        }
+        
+        .info-panel h2 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .info-panel p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .coordinates {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 3px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+            font-size: 12px;
+            font-family: monospace;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 3px;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+            font-size: 12px;
+        }
+        
+        .legend h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+        
+        .legend-gradient {
+            width: 200px;
+            height: 20px;
+            background: linear-gradient(to right, 
+                #000000 0%,
+                #404040 25%,
+                #808080 50%,
+                #c0c0c0 75%,
+                #ffffff 100%
+            );
+            border: 1px solid #ccc;
+        }
+        
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="info-panel">
+        <h2>🗺️ 世界標高地図</h2>
+        <p><strong>ズームレベル:</strong> 0～9</p>
+        <p><strong>タイル数:</strong> 174,763</p>
+        <p><strong>標高範囲:</strong> 0～9,000m</p>
+        <p style="margin-top: 10px; font-size: 12px; color: #888;">
+            8つのTIFFファイルを結合して生成<br>
+            256×256ピクセルタイル
+        </p>
+    </div>
+    
+    <div class="coordinates" id="coordinates">
+        緯度: -, 経度: -
+    </div>
+    
+    <div class="legend">
+        <h4>標高 (m)</h4>
+        <div class="legend-gradient"></div>
+        <div class="legend-labels">
+            <span>0</span>
+            <span>2,250</span>
+            <span>4,500</span>
+            <span>6,750</span>
+            <span>9,000</span>
+        </div>
+    </div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // タイルサイズとズームレベル設定
+        const tileSize = 256;
+        const maxZoom = 9;
+        
+        // 元画像は86400 x 43200 (横4縦2の構成)
+        // アスペクト比は 2:1
+        // ズームレベルnでの構造:
+        // - レベル0: 1x1 タイル (1タイル)
+        // - レベル1: 2x1 タイル (2タイル)
+        // - レベル2: 4x2 タイル (8タイル)
+        // - レベル3: 8x4 タイル (32タイル)
+        // ...
+        // - レベル9: 512x256 タイル (131072タイル)
+        
+        // カスタムCRSを定義（アスペクト比2:1用）
+        L.CRS.Custom2to1 = L.extend({}, L.CRS.Simple, {
+            transformation: new L.Transformation(1, 0, -1, 0)
+        });
+        
+        // 地図を初期化
+        const map = L.map('map', {
+            crs: L.CRS.Custom2to1,
+            minZoom: 0,
+            maxZoom: maxZoom,
+            center: [128, 256],  // 中心座標
+            zoom: 1,
+            attributionControl: false,
+            zoomControl: true
+        });
+        
+        // カスタムタイルレイヤー（アスペクト比2:1対応）
+        L.TileLayer.Custom2to1 = L.TileLayer.extend({
+            getTileUrl: function(coords) {
+                // ズームレベルでのタイル数: X = 2^z, Y = 2^(z-1) or 1
+                const maxY = Math.max(1, Math.pow(2, coords.z - 1));
+                const maxX = Math.pow(2, coords.z);
+                
+                // 範囲外のタイルは空画像を返す
+                if (coords.x < 0 || coords.x >= maxX || coords.y < 0 || coords.y >= maxY) {
+                    return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+                }
+                
+                return L.Util.template(this._url, L.extend({
+                    s: this._getSubdomain(coords),
+                    x: coords.x,
+                    y: coords.y,
+                    z: coords.z
+                }, this.options));
+            }
+        });
+        
+        // タイルレイヤーを追加
+        const demLayer = new L.TileLayer.Custom2to1('tiles_8bit/{z}/{x}/{y}.png', {
+            minZoom: 0,
+            maxZoom: maxZoom,
+            tileSize: tileSize,
+            noWrap: true,
+            attribution: '世界標高地図データ'
+        });
+        
+        demLayer.addTo(map);
+        
+        // 地図の境界を設定
+        const bounds = [[0, 0], [tileSize, tileSize * 2]];
+        map.fitBounds(bounds);
+        map.setMaxBounds([[-tileSize * 0.5, -tileSize * 0.5], [tileSize * 1.5, tileSize * 2.5]]);
+        
+        // 座標表示を更新
+        map.on('mousemove', function(e) {
+            const coords = document.getElementById('coordinates');
+            const zoom = map.getZoom();
+            const scaleX = Math.pow(2, zoom);
+            const scaleY = Math.max(1, Math.pow(2, zoom - 1));
+            
+            // タイル座標に変換（アスペクト比2:1対応）
+            const tileX = Math.floor((e.latlng.lng * scaleX) / tileSize);
+            const tileY = Math.floor((e.latlng.lat * scaleY) / tileSize);
+            
+            coords.innerHTML = `ズーム: ${zoom}, タイル: (${tileX}, ${tileY}), 座標: (${e.latlng.lng.toFixed(1)}, ${e.latlng.lat.toFixed(1)})`;
+        });
+        
+        // ズームレベル変更時
+        map.on('zoomend', function() {
+            const zoom = map.getZoom();
+            const tilesX = Math.pow(2, zoom);
+            const tilesY = Math.pow(2, zoom - 1) || 1;
+            console.log(`ズームレベル ${zoom}: ${tilesX}×${tilesY} タイル`);
+        });
+        
+        // デバッグ: タイル読み込みエラー
+        let errorCount = 0;
+        demLayer.on('tileerror', function(error) {
+            errorCount++;
+            if (errorCount <= 10) {  // 最初の10個のエラーだけ表示
+                console.error('タイル読み込みエラー:', error.tile.src);
+                console.error('  座標:', error.coords);
+            }
+        });
+        
+        // デバッグ: タイル読み込み成功
+        let loadCount = 0;
+        demLayer.on('tileload', function(e) {
+            loadCount++;
+            if (loadCount <= 10) {  // 最初の10個の成功だけ表示
+                console.log('タイル読み込み成功:', e.tile.src);
+            }
+        });
+        
+        console.log('地図を初期化しました');
+        console.log('ズームレベル: 0～' + maxZoom);
+        console.log('タイルパス: tiles_8bit/{z}/{x}/{y}.png');
+        console.log('初期境界:', bounds);
+    </script>
+</body>
+</html>

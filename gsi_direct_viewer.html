@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GSI標準地図ビューア</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background: #202124;
+            overflow: hidden;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            cursor: grab;
+        }
+
+        #container.dragging {
+            cursor: grabbing;
+        }
+
+        .canvas-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        .controls {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+            z-index: 1000;
+            width: 300px;
+            max-height: calc(100vh - 36px);
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.96);
+            padding: 14px;
+            border-radius: 8px;
+            box-shadow: 0 3px 14px rgba(0, 0, 0, 0.28);
+            color: #222;
+        }
+
+        .controls h1 {
+            margin: 0 0 12px;
+            font-size: 17px;
+            line-height: 1.35;
+            color: #1f2933;
+            border-bottom: 2px solid #2e7d32;
+            padding-bottom: 8px;
+        }
+
+        .panel {
+            margin: 12px 0;
+            padding: 10px;
+            border-radius: 6px;
+            background: #f5f7f8;
+            border-left: 4px solid #90a4ae;
+        }
+
+        .panel.active {
+            border-left-color: #2e7d32;
+            background: #eaf5ea;
+        }
+
+        .panel h2 {
+            margin: 0 0 8px;
+            font-size: 13px;
+            color: #455a64;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            color: #52616b;
+            margin-bottom: 5px;
+        }
+
+        input[type="range"],
+        input[type="number"] {
+            width: 100%;
+        }
+
+        input[type="number"] {
+            padding: 5px;
+            border: 1px solid #cfd8dc;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .grid-form {
+            display: grid;
+            grid-template-columns: 44px 1fr;
+            gap: 6px;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        button {
+            min-height: 30px;
+            padding: 6px 9px;
+            border: 0;
+            border-radius: 5px;
+            background: #2e7d32;
+            color: #fff;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.15s ease;
+        }
+
+        button:hover {
+            background: #256a29;
+        }
+
+        button.secondary {
+            background: #1976d2;
+        }
+
+        button.secondary:hover {
+            background: #155fa8;
+        }
+
+        button.warning {
+            background: #f57c00;
+        }
+
+        button.warning:hover {
+            background: #d86d00;
+        }
+
+        .info {
+            position: absolute;
+            bottom: 18px;
+            left: 18px;
+            z-index: 1000;
+            max-width: min(680px, calc(100vw - 36px));
+            background: rgba(255, 255, 255, 0.96);
+            padding: 9px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-family: Consolas, "Courier New", monospace;
+            color: #202124;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+        }
+
+        .credit {
+            position: absolute;
+            right: 18px;
+            bottom: 18px;
+            z-index: 1000;
+            max-width: min(430px, calc(100vw - 36px));
+            background: rgba(255, 255, 255, 0.96);
+            padding: 9px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.5;
+            color: #202124;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+        }
+
+        .credit a {
+            color: #1565c0;
+            text-decoration: none;
+        }
+
+        .credit a:hover {
+            text-decoration: underline;
+        }
+
+        .coord-value {
+            font-family: Consolas, "Courier New", monospace;
+            color: #1565c0;
+            font-weight: 700;
+        }
+
+        .small {
+            font-size: 11px;
+            color: #6b7680;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 760px) {
+            .controls {
+                width: calc(100vw - 36px);
+                max-height: 46vh;
+            }
+
+            .info {
+                left: 10px;
+                bottom: 10px;
+                max-width: calc(100vw - 20px);
+            }
+
+            .credit {
+                right: 10px;
+                bottom: 68px;
+                max-width: calc(100vw - 20px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas-map" class="canvas-layer"></canvas>
+        <canvas id="canvas-marker" class="canvas-layer"></canvas>
+    </div>
+
+    <div class="controls">
+        <h1>GSI標準地図ビューア</h1>
+
+        <div class="panel active">
+            <h2>ズーム</h2>
+            <label>ズームレベル: <span id="zoom-label">5</span></label>
+            <input type="range" id="zoom-slider" min="5" max="18" value="5" step="1">
+            <div class="grid-2" style="margin-top: 8px;">
+                <button id="zoom-in">+</button>
+                <button id="zoom-out">-</button>
+            </div>
+            <button id="reset" class="secondary" style="width: 100%; margin-top: 6px;">日本周辺へ戻る</button>
+        </div>
+
+        <div class="panel">
+            <h2>主要地点</h2>
+            <div class="grid-2">
+                <button id="goto-tokyo">東京</button>
+                <button id="goto-osaka">大阪</button>
+                <button id="goto-sapporo">札幌</button>
+                <button id="goto-naha">那覇</button>
+            </div>
+            <button id="clear-marker" class="warning" style="width: 100%; margin-top: 6px;">マーカーを消す</button>
+        </div>
+
+        <div class="panel">
+            <h2>座標ジャンプ</h2>
+            <div class="grid-form">
+                <label for="manual-lon">経度</label>
+                <input type="number" id="manual-lon" value="139.6917" step="0.0001" min="-180" max="180">
+                <label for="manual-lat">緯度</label>
+                <input type="number" id="manual-lat" value="35.6895" step="0.0001" min="-85.0511" max="85.0511">
+                <label for="manual-zoom">Z</label>
+                <input type="number" id="manual-zoom" value="12" step="1" min="5" max="18">
+            </div>
+            <button id="goto-manual" class="secondary" style="width: 100%;">この座標へ移動</button>
+        </div>
+
+        <div class="panel">
+            <h2>クリック位置</h2>
+            <div>経度: <span class="coord-value" id="coord-lon">-</span></div>
+            <div>緯度: <span class="coord-value" id="coord-lat">-</span></div>
+            <div>タイル: <span class="coord-value" id="coord-tile">-</span></div>
+            <div class="small" style="margin-top: 6px;">
+                GSI標準地図は日本全国とその周辺地域のズームレベル5～18が対象です。
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>ライセンス</h2>
+            <button id="show-license" class="secondary" style="width: 100%;">解説とライセンスを開く</button>
+        </div>
+    </div>
+
+    <div class="info" id="info">
+        ズーム: 5 | 中心: 139.7000, 35.7000 | 読み込み: 0
+    </div>
+
+    <div class="credit">
+        背景地図：<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a><br>
+        地理院タイルに独自表示を重ねて掲載
+    </div>
+
+    <script>
+        const TILE_SIZE = 256;
+        const MIN_ZOOM = 5;
+        const MAX_ZOOM = 18;
+        const DEFAULT_CENTER = { lon: 139.7, lat: 35.7, zoom: 5 };
+        const GSI_STD_URL = "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png";
+        const MERCATOR_LIMIT = 85.05112878;
+
+        const container = document.getElementById("container");
+        const canvasMap = document.getElementById("canvas-map");
+        const canvasMarker = document.getElementById("canvas-marker");
+        const ctxMap = canvasMap.getContext("2d");
+        const ctxMarker = canvasMarker.getContext("2d");
+        const zoomSlider = document.getElementById("zoom-slider");
+        const zoomLabel = document.getElementById("zoom-label");
+        const info = document.getElementById("info");
+
+        let currentZoom = DEFAULT_CENTER.zoom;
+        let center = { lon: DEFAULT_CENTER.lon, lat: DEFAULT_CENTER.lat };
+        let offsetX = 0;
+        let offsetY = 0;
+        let isDragging = false;
+        let lastX = 0;
+        let lastY = 0;
+        let clickStartX = 0;
+        let clickStartY = 0;
+        let marker = null;
+        let drawToken = 0;
+        let loadedTiles = 0;
+        const tileCache = new Map();
+
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function tileUrl(template, z, x, y) {
+            return template
+                .replace("{z}", z)
+                .replace("{x}", x)
+                .replace("{y}", y);
+        }
+
+        function worldSize(zoom) {
+            return TILE_SIZE * Math.pow(2, zoom);
+        }
+
+        function lonLatToWorld(lon, lat, zoom) {
+            const size = worldSize(zoom);
+            const safeLat = clamp(lat, -MERCATOR_LIMIT, MERCATOR_LIMIT);
+            const sinLat = Math.sin(safeLat * Math.PI / 180);
+
+            return {
+                x: ((lon + 180) / 360) * size,
+                y: (0.5 - Math.log((1 + sinLat) / (1 - sinLat)) / (4 * Math.PI)) * size
+            };
+        }
+
+        function worldToLonLat(x, y, zoom) {
+            const size = worldSize(zoom);
+            const lon = x / size * 360 - 180;
+            const n = Math.PI - 2 * Math.PI * y / size;
+            const lat = 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+
+            return {
+                lon: clamp(lon, -180, 180),
+                lat: clamp(lat, -MERCATOR_LIMIT, MERCATOR_LIMIT)
+            };
+        }
+
+        function updateOffsetFromCenter() {
+            const world = lonLatToWorld(center.lon, center.lat, currentZoom);
+            offsetX = canvasMap.width / 2 - world.x;
+            offsetY = canvasMap.height / 2 - world.y;
+        }
+
+        function updateCenterFromOffset() {
+            const worldX = canvasMap.width / 2 - offsetX;
+            const worldY = canvasMap.height / 2 - offsetY;
+            center = worldToLonLat(worldX, worldY, currentZoom);
+        }
+
+        function resizeCanvas() {
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            canvasMap.width = width;
+            canvasMap.height = height;
+            canvasMarker.width = width;
+            canvasMarker.height = height;
+
+            updateOffsetFromCenter();
+            draw();
+        }
+
+        function loadTile(z, x, y) {
+            const max = Math.pow(2, z);
+            if (y < 0 || y >= max) return Promise.resolve(null);
+
+            const wrappedX = ((x % max) + max) % max;
+            const key = `${z}/${wrappedX}/${y}`;
+
+            if (tileCache.has(key)) {
+                return tileCache.get(key);
+            }
+
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+
+            const promise = new Promise(resolve => {
+                img.onload = () => resolve(img);
+                img.onerror = () => resolve(null);
+            });
+
+            img.src = tileUrl(GSI_STD_URL, z, wrappedX, y);
+            tileCache.set(key, promise);
+            return promise;
+        }
+
+        function visibleTileRange() {
+            const startX = Math.floor(-offsetX / TILE_SIZE);
+            const startY = Math.floor(-offsetY / TILE_SIZE);
+            const endX = Math.floor((canvasMap.width - offsetX) / TILE_SIZE);
+            const endY = Math.floor((canvasMap.height - offsetY) / TILE_SIZE);
+
+            return {
+                startX: startX - 1,
+                startY: startY - 1,
+                endX: endX + 1,
+                endY: endY + 1
+            };
+        }
+
+        function draw() {
+            const token = ++drawToken;
+            loadedTiles = 0;
+            ctxMap.fillStyle = "#202124";
+            ctxMap.fillRect(0, 0, canvasMap.width, canvasMap.height);
+
+            const range = visibleTileRange();
+            const max = Math.pow(2, currentZoom);
+
+            for (let y = range.startY; y <= range.endY; y++) {
+                if (y < 0 || y >= max) continue;
+
+                for (let x = range.startX; x <= range.endX; x++) {
+                    const screenX = Math.round(offsetX + x * TILE_SIZE);
+                    const screenY = Math.round(offsetY + y * TILE_SIZE);
+
+                    loadTile(currentZoom, x, y).then(img => {
+                        if (!img || token !== drawToken) return;
+                        ctxMap.drawImage(img, screenX, screenY, TILE_SIZE, TILE_SIZE);
+                        loadedTiles += 1;
+                        updateInfo();
+                    });
+                }
+            }
+
+            drawMarker();
+            updateInfo();
+        }
+
+        function drawMarker() {
+            ctxMarker.clearRect(0, 0, canvasMarker.width, canvasMarker.height);
+            if (!marker) return;
+
+            const world = lonLatToWorld(marker.lon, marker.lat, currentZoom);
+            const x = world.x + offsetX;
+            const y = world.y + offsetY;
+
+            if (x < -80 || x > canvasMarker.width + 80 || y < -100 || y > canvasMarker.height + 80) {
+                return;
+            }
+
+            ctxMarker.save();
+            ctxMarker.translate(x, y);
+
+            ctxMarker.fillStyle = "#d32f2f";
+            ctxMarker.strokeStyle = "#ffffff";
+            ctxMarker.lineWidth = 3;
+            ctxMarker.beginPath();
+            ctxMarker.moveTo(0, 0);
+            ctxMarker.lineTo(-13, -33);
+            ctxMarker.quadraticCurveTo(0, -48, 13, -33);
+            ctxMarker.closePath();
+            ctxMarker.fill();
+            ctxMarker.stroke();
+
+            ctxMarker.beginPath();
+            ctxMarker.arc(0, -30, 6, 0, Math.PI * 2);
+            ctxMarker.fillStyle = "#ffffff";
+            ctxMarker.fill();
+
+            if (marker.label) {
+                ctxMarker.font = "bold 15px sans-serif";
+                ctxMarker.textAlign = "center";
+                ctxMarker.textBaseline = "bottom";
+                ctxMarker.strokeStyle = "#ffffff";
+                ctxMarker.lineWidth = 5;
+                ctxMarker.strokeText(marker.label, 0, -52);
+                ctxMarker.fillStyle = "#d32f2f";
+                ctxMarker.fillText(marker.label, 0, -52);
+            }
+
+            ctxMarker.restore();
+        }
+
+        function setZoom(nextZoom, anchorX = canvasMap.width / 2, anchorY = canvasMap.height / 2) {
+            const zoom = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
+            if (zoom === currentZoom) return;
+
+            const anchorWorldBefore = {
+                x: anchorX - offsetX,
+                y: anchorY - offsetY
+            };
+            const anchorLonLat = worldToLonLat(anchorWorldBefore.x, anchorWorldBefore.y, currentZoom);
+
+            currentZoom = zoom;
+            zoomSlider.value = currentZoom;
+            zoomLabel.textContent = currentZoom;
+
+            const anchorWorldAfter = lonLatToWorld(anchorLonLat.lon, anchorLonLat.lat, currentZoom);
+            offsetX = anchorX - anchorWorldAfter.x;
+            offsetY = anchorY - anchorWorldAfter.y;
+            updateCenterFromOffset();
+            draw();
+        }
+
+        function goToLocation(lon, lat, zoom, label = "") {
+            currentZoom = clamp(zoom, MIN_ZOOM, MAX_ZOOM);
+            center = {
+                lon: clamp(lon, -180, 180),
+                lat: clamp(lat, -MERCATOR_LIMIT, MERCATOR_LIMIT)
+            };
+            marker = { lon: center.lon, lat: center.lat, label };
+            zoomSlider.value = currentZoom;
+            zoomLabel.textContent = currentZoom;
+            updateOffsetFromCenter();
+            draw();
+        }
+
+        function updateInfo() {
+            updateCenterFromOffset();
+            info.textContent =
+                `ズーム: ${currentZoom} | 中心: ${center.lon.toFixed(5)}, ${center.lat.toFixed(5)} | 読み込み: ${loadedTiles}`;
+        }
+
+        function handleClick(clientX, clientY) {
+            const rect = container.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            const worldX = x - offsetX;
+            const worldY = y - offsetY;
+            const lonLat = worldToLonLat(worldX, worldY, currentZoom);
+            const tileX = Math.floor(worldX / TILE_SIZE);
+            const tileY = Math.floor(worldY / TILE_SIZE);
+            const max = Math.pow(2, currentZoom);
+            const wrappedTileX = ((tileX % max) + max) % max;
+
+            document.getElementById("coord-lon").textContent = `${lonLat.lon.toFixed(6)}°`;
+            document.getElementById("coord-lat").textContent = `${lonLat.lat.toFixed(6)}°`;
+            document.getElementById("coord-tile").textContent = `${currentZoom}/${wrappedTileX}/${tileY}`;
+        }
+
+        zoomSlider.addEventListener("input", event => {
+            setZoom(parseInt(event.target.value, 10));
+        });
+
+        document.getElementById("zoom-in").addEventListener("click", () => {
+            setZoom(currentZoom + 1);
+        });
+
+        document.getElementById("zoom-out").addEventListener("click", () => {
+            setZoom(currentZoom - 1);
+        });
+
+        document.getElementById("reset").addEventListener("click", () => {
+            marker = null;
+            currentZoom = DEFAULT_CENTER.zoom;
+            center = { lon: DEFAULT_CENTER.lon, lat: DEFAULT_CENTER.lat };
+            zoomSlider.value = currentZoom;
+            zoomLabel.textContent = currentZoom;
+            updateOffsetFromCenter();
+            draw();
+        });
+
+        document.getElementById("goto-tokyo").addEventListener("click", () => {
+            goToLocation(139.6917, 35.6895, 12, "東京");
+        });
+
+        document.getElementById("goto-osaka").addEventListener("click", () => {
+            goToLocation(135.5023, 34.6937, 12, "大阪");
+        });
+
+        document.getElementById("goto-sapporo").addEventListener("click", () => {
+            goToLocation(141.3545, 43.0618, 12, "札幌");
+        });
+
+        document.getElementById("goto-naha").addEventListener("click", () => {
+            goToLocation(127.6792, 26.2124, 12, "那覇");
+        });
+
+        document.getElementById("clear-marker").addEventListener("click", () => {
+            marker = null;
+            drawMarker();
+        });
+
+        document.getElementById("goto-manual").addEventListener("click", () => {
+            const lon = parseFloat(document.getElementById("manual-lon").value);
+            const lat = parseFloat(document.getElementById("manual-lat").value);
+            const zoom = parseInt(document.getElementById("manual-zoom").value, 10);
+
+            if (Number.isNaN(lon) || Number.isNaN(lat) || Number.isNaN(zoom)) {
+                alert("有効な数値を入力してください。");
+                return;
+            }
+
+            goToLocation(lon, lat, zoom, `(${lon.toFixed(4)}, ${lat.toFixed(4)})`);
+        });
+
+        document.getElementById("show-license").addEventListener("click", () => {
+            window.open("about_license.html", "_blank", "width=1000,height=800,scrollbars=yes,resizable=yes");
+        });
+
+        container.addEventListener("mousedown", event => {
+            isDragging = true;
+            container.classList.add("dragging");
+            lastX = event.clientX;
+            lastY = event.clientY;
+            clickStartX = event.clientX;
+            clickStartY = event.clientY;
+        });
+
+        window.addEventListener("mousemove", event => {
+            if (!isDragging) return;
+
+            const dx = event.clientX - lastX;
+            const dy = event.clientY - lastY;
+            offsetX += dx;
+            offsetY += dy;
+            lastX = event.clientX;
+            lastY = event.clientY;
+            updateCenterFromOffset();
+            draw();
+        });
+
+        window.addEventListener("mouseup", event => {
+            if (!isDragging) return;
+
+            const distance = Math.hypot(event.clientX - clickStartX, event.clientY - clickStartY);
+            isDragging = false;
+            container.classList.remove("dragging");
+
+            if (distance < 5) {
+                handleClick(event.clientX, event.clientY);
+            }
+        });
+
+        container.addEventListener("wheel", event => {
+            event.preventDefault();
+            const rect = container.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            setZoom(currentZoom + (event.deltaY < 0 ? 1 : -1), x, y);
+        }, { passive: false });
+
+        container.addEventListener("touchstart", event => {
+            if (event.touches.length !== 1) return;
+            const touch = event.touches[0];
+            isDragging = true;
+            lastX = touch.clientX;
+            lastY = touch.clientY;
+            clickStartX = touch.clientX;
+            clickStartY = touch.clientY;
+        }, { passive: true });
+
+        container.addEventListener("touchmove", event => {
+            if (!isDragging || event.touches.length !== 1) return;
+            event.preventDefault();
+            const touch = event.touches[0];
+            const dx = touch.clientX - lastX;
+            const dy = touch.clientY - lastY;
+            offsetX += dx;
+            offsetY += dy;
+            lastX = touch.clientX;
+            lastY = touch.clientY;
+            updateCenterFromOffset();
+            draw();
+        }, { passive: false });
+
+        container.addEventListener("touchend", event => {
+            if (!isDragging) return;
+            isDragging = false;
+            const touch = event.changedTouches[0];
+            const distance = Math.hypot(touch.clientX - clickStartX, touch.clientY - clickStartY);
+
+            if (distance < 5) {
+                handleClick(touch.clientX, touch.clientY);
+            }
+        });
+
+        window.addEventListener("resize", resizeCanvas);
+        resizeCanvas();
+    </script>
+</body>
+</html>

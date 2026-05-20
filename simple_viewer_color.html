@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<!-- 上の宣言は、この文書がHTML5で書かれていることをブラウザに伝えます。 -->
+<!-- ページ全体の言語が日本語であることを示します。 -->
+<html lang="ja">
+<!-- ページの設定情報やスタイルを入れる領域です。 -->
+<head>
+    <!-- 文字コードをUTF-8にして、日本語が文字化けしないようにします。 -->
+    <meta charset="UTF-8">
+    <!-- スマートフォンなどでも画面幅に合わせて表示するための設定です。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- ブラウザのタブやタイトルバーに表示される名前です。 -->
+    <title>世界標高地図ビューア - カラー段彩図版</title>
+    
+    <!-- このHTML内で使うCSSスタイルをまとめて書く場所です。 -->
+    <style>
+        /* ページ全体の余白や背景、スクロールの扱いを設定します。 */
+        body {
+            /* ブラウザ標準の外側余白をなくします。 */
+            margin: 0;
+            /* ブラウザ標準の内側余白をなくします。 */
+            padding: 0;
+            /* 画面に表示する文字のフォント候補を指定します。 */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            /* 地図の外側に見える背景色を暗い灰色にします。 */
+            background: #1a1a1a;
+            /* 画面外にはみ出した部分でスクロールバーを出さないようにします。 */
+            overflow: hidden;
+        }
+        
+        /* 地図キャンバスを入れる親要素の大きさと配置を設定します。 */
+        #container {
+            /* 子要素をこの要素基準で絶対配置できるようにします。 */
+            position: relative;
+            /* 表示幅をブラウザの画面幅いっぱいにします。 */
+            width: 100vw;
+            /* 表示高さをブラウザの画面高さいっぱいにします。 */
+            height: 100vh;
+            /* はみ出したキャンバス部分を見せないようにします。 */
+            overflow: hidden;
+        }
+        
+        /* 地図を描画するcanvas要素の配置とカーソルを設定します。 */
+        #canvas {
+            /* 親要素の左上を基準に配置します。 */
+            position: absolute;
+            /* 上端を親要素の上端に合わせます。 */
+            top: 0;
+            /* 左端を親要素の左端に合わせます。 */
+            left: 0;
+            /* マウスを乗せたとき、ドラッグ移動できることを示すカーソルにします。 */
+            cursor: move;
+        }
+        
+        /* 左上の操作パネルの見た目を設定します。 */
+        .controls {
+            /* 画面上に重ねて配置できるようにします。 */
+            position: absolute;
+            /* 画面上端から20px離します。 */
+            top: 20px;
+            /* 画面左端から20px離します。 */
+            left: 20px;
+            /* 地図より前面に表示されるように重なり順を高くします。 */
+            z-index: 1000;
+            /* 白に近い半透明背景にします。 */
+            background: rgba(255, 255, 255, 0.95);
+            /* パネル内側の余白を作ります。 */
+            padding: 15px;
+            /* 角を少し丸くします。 */
+            border-radius: 8px;
+            /* パネルに影を付けて浮いて見えるようにします。 */
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            /* パネルの最小幅を指定します。 */
+            min-width: 200px;
+        }
+        
+        /* 操作パネル内の見出しの余白や文字色を設定します。 */
+        .controls h3 {
+            /* 見出しの下だけ10px余白を付けます。 */
+            margin: 0 0 10px 0;
+            /* 見出しの文字サイズを指定します。 */
+            font-size: 16px;
+            /* 見出しの文字色を濃い灰色にします。 */
+            color: #333;
+        }
+        
+        /* 操作項目ごとの上下余白を設定します。 */
+        .control-group {
+            /* 各操作グループの上下に10pxの余白を作ります。 */
+            margin: 10px 0;
+        }
+        
+        /* 操作項目のラベル表示を設定します。 */
+        .control-group label {
+            /* ラベルを1行分のブロックとして表示します。 */
+            display: block;
+            /* ラベルの文字サイズを少し小さくします。 */
+            font-size: 13px;
+            /* ラベルの文字色を灰色にします。 */
+            color: #666;
+            /* ラベルと入力部品の間に余白を作ります。 */
+            margin-bottom: 5px;
+        }
+        
+        /* すべてのボタンに共通する見た目を設定します。 */
+        button {
+            /* ボタン内側の上下左右の余白を指定します。 */
+            padding: 8px 16px;
+            /* ボタン同士の間隔を指定します。 */
+            margin: 5px 5px 5px 0;
+            /* 標準の枠線を消します。 */
+            border: none;
+            /* ボタンの背景色を緑にします。 */
+            background: #4CAF50;
+            /* ボタンの文字色を白にします。 */
+            color: white;
+            /* ボタンの角を少し丸くします。 */
+            border-radius: 4px;
+            /* マウスを乗せたときにクリック可能な手のカーソルにします。 */
+            cursor: pointer;
+            /* ボタン文字のサイズを指定します。 */
+            font-size: 14px;
+        }
+        
+        /* ボタンにマウスを乗せたときの見た目を設定します。 */
+        button:hover {
+            /* ホバー中は少し暗い緑に変えます。 */
+            background: #45a049;
+        }
+        
+        /* 無効化されたボタンの見た目を設定します。 */
+        button:disabled {
+            /* 押せない状態を示す薄い灰色にします。 */
+            background: #ccc;
+            /* 押せない状態を示すカーソルにします。 */
+            cursor: not-allowed;
+        }
+        
+        /* 左下の情報表示パネルの見た目を設定します。 */
+        .info {
+            /* 画面上に重ねて配置できるようにします。 */
+            position: absolute;
+            /* 画面下端から20px離します。 */
+            bottom: 20px;
+            /* 画面左端から20px離します。 */
+            left: 20px;
+            /* 地図より前面に表示します。 */
+            z-index: 1000;
+            /* 白に近い半透明背景にします。 */
+            background: rgba(255, 255, 255, 0.95);
+            /* 内側の余白を上下10px、左右15pxにします。 */
+            padding: 10px 15px;
+            /* 角を少し丸くします。 */
+            border-radius: 5px;
+            /* 情報表示の文字サイズを小さめにします。 */
+            font-size: 12px;
+            /* 数字や記号が読みやすい等幅フォントにします。 */
+            font-family: monospace;
+            /* 文字色を濃い灰色にします。 */
+            color: #333;
+        }
+        
+        /* ズーム用スライダーの幅を設定します。 */
+        #zoom-slider {
+            /* スライダーの横幅を180pxにします。 */
+            width: 180px;
+        }
+        
+        /* 右下の凡例パネルの見た目を設定します。 */
+        .legend {
+            /* 画面上に重ねて配置できるようにします。 */
+            position: absolute;
+            /* 画面下端から20px離します。 */
+            bottom: 20px;
+            /* 画面右端から20px離します。 */
+            right: 20px;
+            /* 地図より前面に表示します。 */
+            z-index: 1000;
+            /* 白に近い半透明背景にします。 */
+            background: rgba(255, 255, 255, 0.95);
+            /* パネル内側の余白を作ります。 */
+            padding: 15px;
+            /* 角を少し丸くします。 */
+            border-radius: 5px;
+            /* パネルに影を付けて浮いて見えるようにします。 */
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            /* 凡例が画面より高くなりすぎないよう最大高さを指定します。 */
+            max-height: 80vh;
+            /* 縦に長い場合だけ、凡例内でスクロールできるようにします。 */
+            overflow-y: auto;
+        }
+        
+        /* 凡例の見出しの余白と文字サイズを設定します。 */
+        .legend h4 {
+            /* 見出しの下だけ10px余白を付けます。 */
+            margin: 0 0 10px 0;
+            /* 見出しの文字サイズを指定します。 */
+            font-size: 14px;
+        }
+        
+        /* 凡例1行分の並び方を設定します。 */
+        .legend-item {
+            /* 色見本とラベルを横並びにします。 */
+            display: flex;
+            /* 色見本とラベルを縦方向の中央にそろえます。 */
+            align-items: center;
+            /* 各行の上下に少し余白を作ります。 */
+            margin: 4px 0;
+            /* 凡例ラベルの文字サイズを小さめにします。 */
+            font-size: 11px;
+        }
+        
+        /* 凡例の色見本の見た目を設定します。 */
+        .legend-color {
+            /* 色見本の横幅を指定します。 */
+            width: 25px;
+            /* 色見本の高さを指定します。 */
+            height: 15px;
+            /* 色見本に薄い枠線を付けます。 */
+            border: 1px solid #ccc;
+            /* 色見本とラベルの間に余白を作ります。 */
+            margin-right: 8px;
+            /* 横幅が縮まないようにします。 */
+            flex-shrink: 0;
+        }
+        
+        /* 凡例ラベルの幅の取り方を設定します。 */
+        .legend-label {
+            /* 残りの横幅をラベルが使うようにします。 */
+            flex: 1;
+        }
+    /* スタイル定義を終了します。 */
+    </style>
+<!-- ページ設定領域を終了します。 -->
+</head>
+<!-- 実際に画面へ表示される内容を入れる領域です。 -->
+<body>
+    <!-- 地図を描くcanvasを入れる全画面コンテナです。 -->
+    <div id="container">
+        <!-- JavaScriptから2D地図タイルを描画するキャンバスです。 -->
+        <canvas id="canvas"></canvas>
+    <!-- 地図コンテナを閉じます。 -->
+    </div>
+    
+    <!-- ズーム操作用のパネルです。 -->
+    <div class="controls">
+        <!-- 操作パネルのタイトルです。 -->
+        <h3>🗺️ 世界標高地図（カラー）</h3>
+        <!-- ズームスライダーをまとめる操作グループです。 -->
+        <div class="control-group">
+            <!-- 現在のズームレベルを表示するラベルです。 -->
+            <label>ズームレベル: <span id="zoom-label">1</span></label>
+            <!-- ズームレベルを1から9まで選べるスライダーです。 -->
+            <input type="range" id="zoom-slider" min="1" max="9" value="1" step="1">
+        <!-- ズームスライダーの操作グループを閉じます。 -->
+        </div>
+        <!-- ズームボタンとリセットボタンをまとめる操作グループです。 -->
+        <div class="control-group">
+            <!-- ズームインするボタンです。 -->
+            <button id="zoom-in">+</button>
+            <!-- ズームアウトするボタンです。 -->
+            <button id="zoom-out">-</button>
+            <!-- 地図の位置を中央に戻すボタンです。 -->
+            <button id="reset">リセット</button>
+        <!-- ボタンの操作グループを閉じます。 -->
+        </div>
+    <!-- 操作パネルを閉じます。 -->
+    </div>
+    
+    <!-- 現在のズームやタイル読み込み状況を表示する領域です。 -->
+    <div class="info" id="info">
+        <!-- 初期表示として、タイルを読み込み中であることを示します。 -->
+        タイル: 読み込み中...
+    <!-- 情報表示領域を閉じます。 -->
+    </div>
+    
+    <!-- 標高ごとの色分けを説明する凡例パネルです。 -->
+    <div class="legend">
+        <!-- 凡例の見出しです。 -->
+        <h4>標高配色（段彩図）</h4>
+        <!-- 5500m以上を白色で表す凡例行です。 -->
+        <div class="legend-item"><div class="legend-color" style="background: #FFFFFF"></div><div class="legend-label">5500m以上</div></div>
+        <!-- 4500mから5500mを灰色で表す凡例行です。 -->
+        <div class="legend-item"><div class="legend-color" style="background: #A8A8A8"></div><div class="legend-label">4500-5500m</div></div>
+        <!-- 3500mから4500mを濃い茶色で表す凡例行です。 -->
+        <div class="legend-item"><div class="legend-color" style="background: #7A5230"></div><div class="legend-label">3500-4500m</div></div>
+        <!-- 2500mから3500mを茶色で表す凡例行です。 -->
+        <div class="legend-item"><div class="legend-color" style="background: #9B6D3E"></div><div class="legend-label">2500-3500m</div></div>
+        <!-- 1500mから2500mを黄土色で表す凡例行です。 -->
+        <div class="legend-item"><div class="legend-color" style="background: #B89C5A"></div><div class="legend-label">1500-2500m</div></div>
+        <!-- 700mから1500mを黄緑寄りの色で表す凡例行です。 -->
+        <div class="legend-item"><div class="legend-color" style="background: #C8C26E"></div><div class="legend-label">700-1500m</div></div>
+        <!-- 300mから700mを緑色で表す凡例行です。 -->
+        <div class="legend-item"><div class="legend-color" style="background: #7FBC41"></div><div class="legend-label">300-700m</div></div>
+        <!-- 100mから300mを明るい緑色で表す凡例行です。 -->
+        <div class="legend-item"><div class="legend-color" style="background: #B8E186"></div><div class="legend-label">100-300m</div></div>
+        <!-- 0mから100mを淡い緑色で表す凡例行です。 -->
+        <div class="legend-item"><div class="legend-color" style="background: #D7F0C0"></div><div class="legend-label">0-100m</div></div>
+        <!-- -100mから0mの海面下を淡い水色で表す凡例行です。 -->
+        <div class="legend-item"><div class="legend-color" style="background: #A8D8FF"></div><div class="legend-label">-100-0m（海面下）</div></div>
+        <!-- -146mから-100mを水色で表す凡例行です。 -->
+        <div class="legend-item"><div class="legend-color" style="background: #8FD3FF"></div><div class="legend-label">-146-(-100)m</div></div>
+        <!-- 海の凡例だけ区切り線を付けて表示する領域です。 -->
+        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #ddd;">
+            <!-- 海を青色で表す凡例行です。 -->
+            <div class="legend-item"><div class="legend-color" style="background: #2D8CDB"></div><div class="legend-label">海</div></div>
+        <!-- 海の凡例領域を閉じます。 -->
+        </div>
+    <!-- 凡例パネルを閉じます。 -->
+    </div>
+    
+    <!-- 地図の描画、ズーム、ドラッグ操作を行うJavaScriptです。 -->
+    <script>
+        // canvas要素を取得して、地図を描く対象にします。
+        const canvas = document.getElementById('canvas');
+        // canvasに2D描画するためのコンテキストを取得します。
+        const ctx = canvas.getContext('2d');
+        // canvasを包むコンテナ要素を取得します。
+        const container = document.getElementById('container');
+        // 左下の情報表示要素を取得します。
+        const info = document.getElementById('info');
+        // ズームレベルを変えるスライダー要素を取得します。
+        const zoomSlider = document.getElementById('zoom-slider');
+        // 現在のズームレベルを表示する要素を取得します。
+        const zoomLabel = document.getElementById('zoom-label');
+        
+        // 1枚の地図タイルの縦横サイズをピクセル単位で定義します。
+        const TILE_SIZE = 256;
+        // 現在表示しているズームレベルを保持します。
+        let currentZoom = 1;
+        // 地図全体を画面上で左右にどれだけずらすかを保持します。
+        let offsetX = 0;
+        // 地図全体を画面上で上下にどれだけずらすかを保持します。
+        let offsetY = 0;
+        // ドラッグ中かどうかを保持します。
+        let isDragging = false;
+        // 直前のマウスX座標を保持します。
+        let lastX = 0;
+        // 直前のマウスY座標を保持します。
+        let lastY = 0;
+        // 現在のマウスX座標をcanvas内座標で保持します。
+        let mouseX = 0;
+        // 現在のマウスY座標をcanvas内座標で保持します。
+        let mouseY = 0;
+        
+        // 読み込んだタイル画像のPromiseを保存し、同じタイルを再読み込みしないようにします。
+        const tileCache = new Map();
+        
+        // 指定されたズームレベルで必要な横方向・縦方向のタイル数を返します。
+        function getTileCount(zoom) {
+            // 横方向のタイル数はズームが1上がるごとに2倍になります。
+            const tilesX = Math.pow(2, zoom);
+            // 縦方向のタイル数は世界地図の比率に合わせて横方向の半分相当にします。
+            const tilesY = zoom === 0 ? 1 : Math.pow(2, zoom - 1);
+            // 計算した横方向・縦方向のタイル数をオブジェクトとして返します。
+            return { tilesX, tilesY };
+        }
+        
+        // ブラウザサイズに合わせてcanvasサイズを調整し、地図を描き直します。
+        function resizeCanvas() {
+            // canvasの横幅をコンテナの表示幅に合わせます。
+            canvas.width = container.clientWidth;
+            // canvasの高さをコンテナの表示高さに合わせます。
+            canvas.height = container.clientHeight;
+            // まだ移動していない初期状態なら、地図を画面中央に配置します。
+            if (offsetX === 0 && offsetY === 0) {
+                // 現在ズームに必要なタイル数を取得します。
+                const { tilesX, tilesY } = getTileCount(currentZoom);
+                // 地図全体が横方向中央に来るようX座標のずれを計算します。
+                offsetX = (canvas.width - tilesX * TILE_SIZE) / 2;
+                // 地図全体が縦方向中央に来るようY座標のずれを計算します。
+                offsetY = (canvas.height - tilesY * TILE_SIZE) / 2;
+            }
+            // サイズ調整後の状態で地図を描き直します。
+            drawMap();
+        }
+        
+        // 指定されたズーム・タイルX・タイルYの画像を読み込みます。
+        function loadTile(zoom, x, y) {
+            // キャッシュ用に「ズーム/X/Y」の文字列キーを作ります。
+            const key = `${zoom}/${x}/${y}`;
+            
+            // すでに読み込み済みまたは読み込み中なら、そのPromiseを再利用します。
+            if (tileCache.has(key)) {
+                // キャッシュされているタイル読み込み結果を返します。
+                return tileCache.get(key);
+            }
+            
+            // 新しい画像オブジェクトを作ります。
+            const img = new Image();
+            // file:// プロトコルでは crossOrigin は不要（CORSエラーの原因）
+            // 画像読み込みの完了または失敗をPromiseで扱います。
+            const promise = new Promise((resolve, reject) => {
+                // 画像が読み込めたら、その画像をPromiseの結果として返します。
+                img.onload = () => resolve(img);
+                // 画像読み込みに失敗したときの処理を定義します。
+                img.onerror = () => {
+                    // 失敗したタイルのキーをコンソールに警告表示します。
+                    console.warn(`タイル読み込み失敗: ${key}`);
+                    // 失敗しても処理全体を止めず、nullとして扱います。
+                    resolve(null);
+                };
+            });
+            
+            // タイル画像ファイルのパスを設定して読み込みを開始します。
+            img.src = `tiles_color/${zoom}/${x}/${y}.png`;
+            // 同じタイルを再利用できるよう、Promiseをキャッシュに保存します。
+            tileCache.set(key, promise);
+            
+            // タイル読み込みのPromiseを返します。
+            return promise;
+        }
+        
+        // 現在のズームと位置に合わせて、表示範囲の地図タイルをcanvasに描画します。
+        async function drawMap() {
+            // 背景色を暗い灰色に設定します。
+            ctx.fillStyle = '#1a1a1a';
+            // canvas全体を背景色で塗りつぶし、前回描画を消します。
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 現在ズームで必要なタイル数を取得します。
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            
+            // 読み込み済みとして描画できたタイル数を数えます。
+            let loadedCount = 0;
+            // 確認したタイル総数を数えます。
+            let totalTiles = 0;
+            
+            // 縦方向のタイルを上から順に処理します。
+            for (let y = 0; y < tilesY; y++) {
+                // 横方向のタイルを左から順に処理します。
+                for (let x = 0; x < tilesX; x++) {
+                    // タイルを1枚確認したので総数を増やします。
+                    totalTiles++;
+                    // このタイルを画面上のどのX座標に描くか計算します。
+                    const screenX = offsetX + x * TILE_SIZE;
+                    // このタイルを画面上のどのY座標に描くか計算します。
+                    const screenY = offsetY + y * TILE_SIZE;
+                    
+                    // タイルが画面内に少しでも見える場合だけ読み込み・描画します。
+                    if (screenX + TILE_SIZE >= 0 && screenX < canvas.width &&
+                        // Y方向でも画面内に少しでも見えるか確認します。
+                        screenY + TILE_SIZE >= 0 && screenY < canvas.height) {
+                        
+                        // 対象タイルの画像読み込みPromiseを取得します。
+                        const tilePromise = loadTile(currentZoom, x, y);
+                        // タイル画像が読み込めたらcanvasに描画します。
+                        tilePromise.then(img => {
+                            // 読み込みに成功した画像だけ描画します。
+                            if (img) {
+                                // タイル画像を計算済みの位置に256px四方で描きます。
+                                ctx.drawImage(img, screenX, screenY, TILE_SIZE, TILE_SIZE);
+                                // 描画できたタイル数を増やします。
+                                loadedCount++;
+                                // 左下の読み込み状況を更新します。
+                                updateInfo(loadedCount, totalTiles);
+                            }
+                        });
+                    }
+                }
+            }
+            
+            // 読み込み開始直後の情報表示を更新します。
+            updateInfo(loadedCount, totalTiles);
+        }
+        
+        // 左下の情報表示を、現在のズームやタイル数に合わせて更新します。
+        function updateInfo(loaded, total) {
+            // 現在ズームでの横方向・縦方向のタイル数を取得します。
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            // 情報欄にズーム、タイル数、読み込み数を文字列として表示します。
+            info.textContent = `ズーム: ${currentZoom} | タイル: ${tilesX}×${tilesY} (${total}個) | 読み込み: ${loaded}/${total}`;
+        }
+        
+        // ズームレベルを変更し、指定した中心点を基準に地図の位置を調整します。
+        function setZoom(zoom, centerX = null, centerY = null) {
+            // ズーム値が1未満や9超えにならないよう範囲内に丸めます。
+            zoom = Math.max(1, Math.min(9, zoom));
+            
+            // 現在と同じズームなら何もせず処理を終えます。
+            if (zoom === currentZoom) return;
+            
+            // ズーム中心のX座標が指定されていなければ画面中央を使います。
+            if (centerX === null) centerX = canvas.width / 2;
+            // ズーム中心のY座標が指定されていなければ画面中央を使います。
+            if (centerY === null) centerY = canvas.height / 2;
+            
+            // 変更前ズームでのタイル数を取得します。
+            const oldTiles = getTileCount(currentZoom);
+            // 変更前の地図全体の横幅をピクセル単位で計算します。
+            const oldMapWidth = oldTiles.tilesX * TILE_SIZE;
+            // 変更前の地図全体の高さをピクセル単位で計算します。
+            const oldMapHeight = oldTiles.tilesY * TILE_SIZE;
+            
+            // ズーム中心が地図全体の横方向でどの割合位置にあるか計算します。
+            const normalizedX = (centerX - offsetX) / oldMapWidth;
+            // ズーム中心が地図全体の縦方向でどの割合位置にあるか計算します。
+            const normalizedY = (centerY - offsetY) / oldMapHeight;
+            
+            // 現在のズームレベルを新しい値に更新します。
+            currentZoom = zoom;
+            
+            // 変更後ズームでのタイル数を取得します。
+            const newTiles = getTileCount(zoom);
+            // 変更後の地図全体の横幅をピクセル単位で計算します。
+            const newMapWidth = newTiles.tilesX * TILE_SIZE;
+            // 変更後の地図全体の高さをピクセル単位で計算します。
+            const newMapHeight = newTiles.tilesY * TILE_SIZE;
+            
+            // 同じ地図上の地点がズーム中心に残るようX方向のずれを再計算します。
+            offsetX = centerX - normalizedX * newMapWidth;
+            // 同じ地図上の地点がズーム中心に残るようY方向のずれを再計算します。
+            offsetY = centerY - normalizedY * newMapHeight;
+            
+            // スライダーの表示値を現在ズームに合わせます。
+            zoomSlider.value = zoom;
+            // ラベルの表示値を現在ズームに合わせます。
+            zoomLabel.textContent = zoom;
+            
+            // 最小ズームならズームアウトボタンを無効化します。
+            document.getElementById('zoom-out').disabled = (zoom === 1);
+            // 最大ズームならズームインボタンを無効化します。
+            document.getElementById('zoom-in').disabled = (zoom === 9);
+            
+            // ズーム変更後の状態で地図を描き直します。
+            drawMap();
+        }
+        
+        // 現在ズームの地図を画面中央に戻します。
+        function reset() {
+            // 現在ズームで必要なタイル数を取得します。
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            // 地図全体が横方向中央に来るようX座標のずれを計算します。
+            offsetX = (canvas.width - tilesX * TILE_SIZE) / 2;
+            // 地図全体が縦方向中央に来るようY座標のずれを計算します。
+            offsetY = (canvas.height - tilesY * TILE_SIZE) / 2;
+            // 中央に戻した状態で地図を描き直します。
+            drawMap();
+        }
+        
+        // イベントリスナー
+        // ズームスライダーが動いたときにズームを変更します。
+        zoomSlider.addEventListener('input', (e) => {
+            // スライダーの値を整数に変換してsetZoomに渡します。
+            setZoom(parseInt(e.target.value));
+        });
+        
+        // ズームインボタンが押されたときの処理を登録します。
+        document.getElementById('zoom-in').addEventListener('click', () => {
+            // 現在のマウス位置を中心に1段階ズームインします。
+            setZoom(currentZoom + 1, mouseX, mouseY);
+        });
+        
+        // ズームアウトボタンが押されたときの処理を登録します。
+        document.getElementById('zoom-out').addEventListener('click', () => {
+            // 現在のマウス位置を中心に1段階ズームアウトします。
+            setZoom(currentZoom - 1, mouseX, mouseY);
+        });
+        
+        // リセットボタンが押されたらreset関数を実行します。
+        document.getElementById('reset').addEventListener('click', reset);
+        
+        // canvas上でマウスが動いたときの処理を登録します。
+        canvas.addEventListener('mousemove', (e) => {
+            // canvasの画面上の位置とサイズを取得します。
+            const rect = canvas.getBoundingClientRect();
+            // マウスのX座標をcanvas内の座標に変換して保存します。
+            mouseX = e.clientX - rect.left;
+            // マウスのY座標をcanvas内の座標に変換して保存します。
+            mouseY = e.clientY - rect.top;
+            
+            // ドラッグ中なら地図の表示位置を移動します。
+            if (isDragging) {
+                // 前回位置から今回位置までのX方向の移動量を計算します。
+                const deltaX = e.clientX - lastX;
+                // 前回位置から今回位置までのY方向の移動量を計算します。
+                const deltaY = e.clientY - lastY;
+                // 地図全体のX方向オフセットに移動量を加えます。
+                offsetX += deltaX;
+                // 地図全体のY方向オフセットに移動量を加えます。
+                offsetY += deltaY;
+                // 次回計算のため、現在のX座標を前回位置として保存します。
+                lastX = e.clientX;
+                // 次回計算のため、現在のY座標を前回位置として保存します。
+                lastY = e.clientY;
+                // 移動後の位置で地図を描き直します。
+                drawMap();
+            }
+        });
+        
+        // canvas上でマウスボタンを押したときの処理を登録します。
+        canvas.addEventListener('mousedown', (e) => {
+            // ドラッグ中であることを記録します。
+            isDragging = true;
+            // ドラッグ開始時のX座標を保存します。
+            lastX = e.clientX;
+            // ドラッグ開始時のY座標を保存します。
+            lastY = e.clientY;
+            // ドラッグ中であることが分かるカーソルに変更します。
+            canvas.style.cursor = 'grabbing';
+        });
+        
+        // canvas上でマウスボタンを離したときの処理を登録します。
+        canvas.addEventListener('mouseup', () => {
+            // ドラッグ状態を解除します。
+            isDragging = false;
+            // 通常の移動用カーソルに戻します。
+            canvas.style.cursor = 'move';
+        });
+        
+        // マウスがcanvasの外へ出たときの処理を登録します。
+        canvas.addEventListener('mouseleave', () => {
+            // canvas外ではドラッグ状態を解除します。
+            isDragging = false;
+            // 通常の移動用カーソルに戻します。
+            canvas.style.cursor = 'move';
+        });
+        
+        // canvas上でマウスホイールを回したときの処理を登録します。
+        canvas.addEventListener('wheel', (e) => {
+            // ページ全体がスクロールしてしまう標準動作を止めます。
+            e.preventDefault();
+            // canvasの画面上の位置とサイズを取得します。
+            const rect = canvas.getBoundingClientRect();
+            // ホイール位置のX座標をcanvas内の座標に変換します。
+            const zoomCenterX = e.clientX - rect.left;
+            // ホイール位置のY座標をcanvas内の座標に変換します。
+            const zoomCenterY = e.clientY - rect.top;
+            
+            // ホイールを上方向に回した場合はズームインします。
+            if (e.deltaY < 0) {
+                // ホイール位置を中心に1段階ズームインします。
+                setZoom(currentZoom + 1, zoomCenterX, zoomCenterY);
+            // ホイールを下方向に回した場合はズームアウトします。
+            } else {
+                // ホイール位置を中心に1段階ズームアウトします。
+                setZoom(currentZoom - 1, zoomCenterX, zoomCenterY);
+            }
+        });
+        
+        // ブラウザの画面サイズが変わったらcanvasサイズを合わせ直します。
+        window.addEventListener('resize', resizeCanvas);
+        
+        // ページ読み込み時にcanvasサイズを設定し、最初の地図を描画します。
+        resizeCanvas();
+        
+        // 初期化が完了したことを開発者ツールのコンソールに表示します。
+        console.log('世界標高地図ビューア（カラー段彩図版） - 初期化完了');
+    // JavaScriptの処理を終了します。
+    </script>
+<!-- 画面に表示される本文領域を終了します。 -->
+</body>
+<!-- HTML文書全体を終了します。 -->
+</html>

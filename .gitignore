@@ -1,0 +1,25 @@
+# Generated / source geospatial data
+*.tif
+*.tiff
+*.zip
+
+# Tile image directories. These contain many generated 256x256 files.
+/tiles/
+/tiles_8bit/
+/tiles_color/
+/gm_lc/
+/gm_ve/
+
+# Other generated or downloaded data folders
+/result/
+/sample_data/
+/地球地図全球版 _ 国土地理院_files/
+
+# OS / editor noise
+Thumbs.db
+.DS_Store
+
+# Local scratch files
+*.tmp
+*.bak
+*.old

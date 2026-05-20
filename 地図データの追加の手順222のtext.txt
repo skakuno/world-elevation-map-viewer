@@ -1,0 +1,837 @@
+先日、標準標高の地図をつくりました。256x256でマウスホイールで拡縮しながら、googleのマップのようにzoomするものです：標高データ、ZEデータ、LCデータの３種類があり、レベル１からレベル８は９までの階層で拡縮時のデータが作成されました。これはいま、手元PCでおこなっていますが、xserverに配置する場合、サーバーに転送しなければなりません。zipにしてから、転送し、サーバーでzipを解凍する手順が時間短縮できるはずです。それをどうやればいいか、整理して教えてください。D:\userdata\kakuno\deskto\910世界標高地図データallmapフォルダにすべてがあります。階層別データは、tiles、tilrs_8bit、tiles_color、gm_lc、gm_xeです。いかがでしょうか？
+方針はかなり良いです。大量の256×256タイルは「小ファイル多数」なので、1枚ずつ転送するより、zip/tarに固めて1本で送るのが圧倒的に有利です。公式仕様を軽く確認しつつ、Windows側→xserver側の手順として整理します。
+Thought for 19s
+はい。この場合は 「小さいPNGタイルを何万・何十万個も転送する」ことが一番遅い原因なので、方針は正しいです。
+手元PCで圧縮 → 1ファイルだけ転送 → xserver上で解凍 が最適です。
+Xserverの通常レンタルサーバーではSSHは公開鍵認証のみ、パスワードSSHでは接続できない仕様です。VPSの場合はSSH接続手順が別にあります。いずれもSSHで入れれば、サーバー上で unzip や tar 解凍ができます。エックスサーバー公式のコマンドパスにも zip と unzip が載っています。
+1. 今回の対象フォルダ
+手元PC：
+D:\userdata\kakuno\deskto\910世界標高地図データallmap
+中にある対象：
+tiles
+tilrs_8bit
+tiles_color
+gm_lc
+gm_xe
+注意：tilrs_8bit は、もし本当にその名前ならそのままでよいです。
+もしタイプミスで tiles_8bit が正しいなら、コマンド内も直してください。
+2. まず手元PCで確認
+PowerShellで：
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap"
+ls
+ここで、
+tiles
+tilrs_8bit
+tiles_color
+gm_lc
+gm_xe
+が見えていればOKです。
+3. 圧縮する：おすすめは tar.gz
+zipでもよいですが、タイル地図のような大量ファイルでは、サーバー側Linuxとの相性を考えると tar.gz の方が扱いやすいです。
+PowerShellで：
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap"
+tar -czf allmap_tiles_20260506.tar.gz tiles tilrs_8bit tiles_color gm_lc gm_xe
+これで同じフォルダ内に、
+allmap_tiles_20260506.tar.gz
+ができます。
+作成後に確認：
+ls *.tar.gz
+4. zipでやる場合
+どうしてもzipにしたい場合は、Windows標準なら：
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap"
+Compress-Archive `
+  -Path ".\tiles", ".\tilrs_8bit", ".\tiles_color", ".\gm_lc", ".\gm_xe" `
+  -DestinationPath ".\allmap_tiles_20260506.zip" `
+  -CompressionLevel Fastest
+ただし大量タイルでは、Windows標準の Compress-Archive は遅くなることがあります。
+7-Zipがあるならこちらの方が現実的です。
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap"
+& "C:\Program Files\7-Zip\7z.exe" a -tzip -mx=1 allmap_tiles_20260506.zip tiles tilrs_8bit tiles_color gm_lc gm_xe
+-mx=1 は圧縮率より速度優先です。PNGはもともと圧縮済みなので、強く圧縮してもあまり小さくなりません。速度優先でよいです。
+5. サーバー側の配置先を決める
+たとえば公開URLをこうしたいとします。
+https://example.com/maps/
+その場合、通常はサーバー上で次のような場所に置きます。
+レンタルサーバーの場合の例：
+/home/サーバーID/example.com/public_html/maps/
+VPSでNginx/Apacheを使っている場合の例：
+/var/www/html/maps/
+あなたの構成では、おそらく最終的にこういう形がよいです。
+public_html/
+  maps/
+    tiles/
+    tilrs_8bit/
+    tiles_color/
+    gm_lc/
+    gm_xe/
+    index.html
+    map.js
+または、
+public_html/
+  allmap/
+    tiles/
+    tilrs_8bit/
+    tiles_color/
+    gm_lc/
+    gm_xe/
+6. 転送する方法A：scpで送る
+SSHが使えるなら、PowerShellから scp で送れます。
+例：
+scp "D:\userdata\kakuno\deskto\910世界標高地図データallmap\allmap_tiles_20260506.tar.gz" user@example.com:/home/user/
+実際には、
+user@example.com
+の部分を、xserverのSSHユーザー名・ホスト名に置き換えます。
+秘密鍵を指定する場合：
+scp -i "C:\Users\あなた\.ssh\xserver_key" "D:\userdata\kakuno\deskto\910世界標高地図データallmap\allmap_tiles_20260506.tar.gz" user@example.com:/home/user/
+7. 転送する方法B：WinSCPで送る
+コマンドに慣れていなければ、WinSCPで十分です。
+手順はこうです。
+    1. WinSCPを起動 
+    2. SFTPでxserverに接続 
+    3. 左側で手元PCの
+       D:\userdata\kakuno\deskto\910世界標高地図データallmap
+       を開く
+    4. 右側でサーバーのアップロード先を開く 
+    5. allmap_tiles_20260506.tar.gz または allmap_tiles_20260506.zip だけを転送する 
+ここで重要なのは、tilesフォルダをそのままドラッグしないことです。
+大量の小ファイルを直接送ると遅いので、必ず圧縮ファイル1個だけ送ります。
+8. サーバーにSSHで入る
+例：
+ssh user@example.com
+秘密鍵を使う場合：
+ssh -i "C:\Users\あなた\.ssh\xserver_key" user@example.com
+9. サーバー上で配置先に移動
+レンタルサーバー例：
+cd ~/example.com/public_html
+mkdir -p maps
+cd maps
+VPS例：
+cd /var/www/html
+mkdir -p maps
+cd maps
+もし圧縮ファイルを /home/user/ にアップしたなら、先に移動します。
+mv ~/allmap_tiles_20260506.tar.gz .
+10. サーバー上で解凍
+tar.gzの場合：
+tar -xzf allmap_tiles_20260506.tar.gz
+zipの場合：
+unzip allmap_tiles_20260506.zip
+解凍後に確認：
+ls
+こう見えればOKです。
+tiles
+tilrs_8bit
+tiles_color
+gm_lc
+gm_xe
+11. 不要になった圧縮ファイルを削除
+解凍が終わったら、サーバー容量節約のために圧縮ファイルは消してよいです。
+tar.gzの場合：
+rm allmap_tiles_20260506.tar.gz
+zipの場合：
+rm allmap_tiles_20260506.zip
+12. ブラウザから確認
+たとえば配置が、
+public_html/maps/tiles/...
+なら、ブラウザで：
+https://example.com/maps/
+またはタイル1枚を直接：
+https://example.com/maps/tiles/1/0/0.png
+のように確認します。
+実際のタイルパスが、
+tiles/8/123/45.png
+形式なら、
+https://example.com/maps/tiles/8/123/45.png
+で1枚表示されれば成功です。
+13. 今回のおすすめ実行順
+まずはこれでよいです。
+手元PC
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap"
+tar -czf allmap_tiles_20260506.tar.gz tiles tilrs_8bit tiles_color gm_lc gm_xe
+転送
+scp "D:\userdata\kakuno\deskto\910世界標高地図データallmap\allmap_tiles_20260506.tar.gz" user@example.com:/home/user/
+サーバー側
+ssh user@example.com
+cd ~/example.com/public_html
+mkdir -p maps
+cd maps
+mv ~/allmap_tiles_20260506.tar.gz .
+tar -xzf allmap_tiles_20260506.tar.gz
+ls
+rm allmap_tiles_20260506.tar.gz
+14. 重要な注意点
+この地図データは、おそらくファイル数が非常に多いです。したがって、サーバー上で解凍するときにも時間がかかります。失敗を避けるため、最初は全部ではなく、たとえば tiles_color だけでテストしてもよいです。
+テスト用：
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap"
+tar -czf test_tiles_color.tar.gz tiles_color
+これを転送・解凍して、URL表示を確認します。
+成功したら本番として5フォルダまとめて送る、という流れが安全です。
+今あるデータをサーバーにのせたあと、新たにレベルの異なるデータ（dem系、lc系、VE系）を入手したときにも簡便に追加して動かしたい。そのことを予定してokに動作する配置にする方法をお願いします。ローカルはwinspcで接続できています。サーバーはアパッチです。ほかに確かめたい前提条件はありますか？
+ここは最初に設計を固める価値があります。ポイントは、JavaScript側に「固定フォルダ名」を埋め込まず、サーバー上の catalog.json を読んで、追加データを自動的に選べる形にすることです。
+Thought for 14s
+はい。今後も追加しやすくするなら、最初から「データ本体」と「表示プログラム」と「カタログ」を分けるのが正解です。
+結論から言うと、こうします。
+public_html/
+  allmap/
+    index.html
+    app/
+      map.js
+      style.css
+    catalog.json
+    layers/
+      dem/
+        standard_20260506/
+        dem_8bit_20260506/
+        dem_color_20260506/
+      lc/
+        gm_lc_20260506/
+      ve/
+        gm_xe_20260506/
+現在の、
+tiles
+tilrs_8bit
+tiles_color
+gm_lc
+gm_xe
+を、そのまま公開直下に並べるのではなく、種類別・データセット別に収納するのがよいです。
+
+1. 基本方針
+やってはいけない形は、JavaScriptの中にこう固定することです。
+tileUrl = "tiles_color/" + z + "/" + x + "/" + y + ".png";
+これだと、あとで dem_color_20260701 や lc_新データ を追加したとき、毎回プログラムを書き換える必要があります。
+代わりに、JavaScriptはこう考えます。
+catalog.json を読む
+↓
+使えるレイヤー一覧を取得
+↓
+選ばれたレイヤーの pathTemplate を使う
+↓
+タイルを読む
+つまり、今後追加するときは、
+    1. サーバーに新しいタイルフォルダを置く 
+    2. catalog.json に1項目追加する 
+    3. ブラウザで選べるようになる 
+という流れにします。
+
+2. 推奨サーバー配置
+Apacheの公開ディレクトリが、たとえば
+public_html
+だとすると、その下にこう置きます。
+public_html/
+  allmap/
+    index.html
+    app/
+      map.js
+      style.css
+    catalog.json
+    layers/
+      dem/
+        standard_20260506/
+          tiles/
+            1/
+            2/
+            3/
+            ...
+            8/
+            9/
+        dem_8bit_20260506/
+          tiles/
+            1/
+            2/
+            ...
+            9/
+        dem_color_20260506/
+          tiles/
+            1/
+            2/
+            ...
+            9/
+      lc/
+        gm_lc_20260506/
+          tiles/
+            1/
+            2/
+            ...
+            9/
+      ve/
+        gm_xe_20260506/
+          tiles/
+            1/
+            2/
+            ...
+            9/
+現在のフォルダとの対応はこうです。
+現在のフォルダ	新しい配置案
+tiles	layers/dem/standard_20260506/tiles
+tilrs_8bit	layers/dem/dem_8bit_20260506/tiles
+tiles_color	layers/dem/dem_color_20260506/tiles
+gm_lc	layers/lc/gm_lc_20260506/tiles
+gm_xe	layers/ve/gm_xe_20260506/tiles
+※ tilrs_8bit が本当にその名前ならそのままでよいですが、今後は tiles_8bit などに直しておく方が混乱しません。
+
+3. catalog.json を置く
+public_html/allmap/catalog.json に、こういうファイルを置きます。
+{
+  "version": "1.0",
+  "tileSize": 256,
+  "layers": [
+    {
+      "id": "dem_standard_20260506",
+      "type": "dem",
+      "name": "標準標高",
+      "description": "標準標高データ 2026-05-06版",
+      "minZoom": 1,
+      "maxZoom": 9,
+      "tileUrl": "layers/dem/standard_20260506/tiles/{z}/{x}/{y}.png"
+    },
+    {
+      "id": "dem_8bit_20260506",
+      "type": "dem",
+      "name": "標高 8bit",
+      "description": "8bitグレースケール標高",
+      "minZoom": 1,
+      "maxZoom": 9,
+      "tileUrl": "layers/dem/dem_8bit_20260506/tiles/{z}/{x}/{y}.png"
+    },
+    {
+      "id": "dem_color_20260506",
+      "type": "dem",
+      "name": "標高カラー",
+      "description": "標高カラー表示",
+      "minZoom": 1,
+      "maxZoom": 9,
+      "tileUrl": "layers/dem/dem_color_20260506/tiles/{z}/{x}/{y}.png"
+    },
+    {
+      "id": "lc_20260506",
+      "type": "lc",
+      "name": "LC 土地被覆",
+      "description": "土地被覆データ",
+      "minZoom": 1,
+      "maxZoom": 9,
+      "tileUrl": "layers/lc/gm_lc_20260506/tiles/{z}/{x}/{y}.png"
+    },
+    {
+      "id": "ve_20260506",
+      "type": "ve",
+      "name": "VE / XE データ",
+      "description": "VE系データ",
+      "minZoom": 1,
+      "maxZoom": 9,
+      "tileUrl": "layers/ve/gm_xe_20260506/tiles/{z}/{x}/{y}.png"
+    }
+  ]
+}
+これが非常に重要です。
+今後、新しいDEMを追加したら、たとえばこう足すだけです。
+{
+  "id": "dem_color_20260710",
+  "type": "dem",
+  "name": "標高カラー 2026-07-10版",
+  "description": "新しい標高カラーデータ",
+  "minZoom": 1,
+  "maxZoom": 10,
+  "tileUrl": "layers/dem/dem_color_20260710/tiles/{z}/{x}/{y}.png"
+}
+JavaScript側は、この tileUrl を読んで表示します。
+
+4. 追加データを入れるときのルール
+今後、新しいデータを入手したら、必ずこの形にします。
+DEM系
+allmap/layers/dem/データ名/tiles/{z}/{x}/{y}.png
+例：
+allmap/layers/dem/dem_color_20260710/tiles/8/123/45.png
+LC系
+allmap/layers/lc/データ名/tiles/{z}/{x}/{y}.png
+例：
+allmap/layers/lc/gm_lc_20260710/tiles/8/123/45.png
+VE系
+allmap/layers/ve/データ名/tiles/{z}/{x}/{y}.png
+例：
+allmap/layers/ve/gm_ve_20260710/tiles/8/123/45.png
+この形を守れば、あとからいくらでも追加できます。
+
+5. WinSCPでの追加手順
+WinSCPで接続できているなら、操作はこうです。
+初回
+ローカルで圧縮します。
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap"
+tar -czf allmap_initial_20260506.tar.gz tiles tilrs_8bit tiles_color gm_lc gm_xe
+WinSCPでサーバーへ転送します。
+public_html/allmap/
+に置きます。
+サーバーで解凍できるなら、SSHで：
+cd ~/public_html/allmap
+tar -xzf allmap_initial_20260506.tar.gz
+ただし、このままだと tiles などが直下に出るので、最初からローカル側で新しい構造を作ってから圧縮する方がよいです。
+
+6. ローカル側にも同じ構造を作る
+ローカルにも、サーバーと同じ構造を作っておくのが一番安全です。
+D:\userdata\kakuno\deskto\910世界標高地図データallmap_publish\
+  index.html
+  app\
+  catalog.json
+  layers\
+    dem\
+      standard_20260506\
+        tiles\
+      dem_8bit_20260506\
+        tiles\
+      dem_color_20260506\
+        tiles\
+    lc\
+      gm_lc_20260506\
+        tiles\
+    ve\
+      gm_xe_20260506\
+        tiles\
+そして、現在のデータをそこへ移動またはコピーします。
+mkdir "D:\userdata\kakuno\deskto\910世界標高地図データallmap_publish"
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap_publish"
+mkdir layers
+mkdir layers\dem
+mkdir layers\lc
+mkdir layers\ve
+mkdir layers\dem\standard_20260506
+mkdir layers\dem\dem_8bit_20260506
+mkdir layers\dem\dem_color_20260506
+mkdir layers\lc\gm_lc_20260506
+mkdir layers\ve\gm_xe_20260506
+コピーするなら：
+robocopy "D:\userdata\kakuno\deskto\910世界標高地図データallmap\tiles" `
+         "D:\userdata\kakuno\deskto\910世界標高地図データallmap_publish\layers\dem\standard_20260506\tiles" /E
+robocopy "D:\userdata\kakuno\deskto\910世界標高地図データallmap\tilrs_8bit" `
+         "D:\userdata\kakuno\deskto\910世界標高地図データallmap_publish\layers\dem\dem_8bit_20260506\tiles" /E
+robocopy "D:\userdata\kakuno\deskto\910世界標高地図データallmap\tiles_color" `
+         "D:\userdata\kakuno\deskto\910世界標高地図データallmap_publish\layers\dem\dem_color_20260506\tiles" /E
+robocopy "D:\userdata\kakuno\deskto\910世界標高地図データallmap\gm_lc" `
+         "D:\userdata\kakuno\deskto\910世界標高地図データallmap_publish\layers\lc\gm_lc_20260506\tiles" /E
+robocopy "D:\userdata\kakuno\deskto\910世界標高地図データallmap\gm_xe" `
+         "D:\userdata\kakuno\deskto\910世界標高地図データallmap_publish\layers\ve\gm_xe_20260506\tiles" /E
+その後、この allmap_publish を圧縮してサーバーへ送ります。
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap_publish"
+tar -czf allmap_publish_20260506.tar.gz index.html app catalog.json layers
+
+7. 今後の追加手順
+たとえば、新しい標高カラーのレベル1〜10を入手したとします。
+ローカルでこういう構造にします。
+allmap_publish/
+  layers/
+    dem/
+      dem_color_20260710/
+        tiles/
+          1/
+          2/
+          ...
+          10/
+それだけを圧縮します。
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap_publish"
+tar -czf add_dem_color_20260710.tar.gz layers\dem\dem_color_20260710 catalog.json
+WinSCPでサーバーの
+public_html/allmap/
+へ送ります。
+サーバーで解凍します。
+cd ~/public_html/allmap
+tar -xzf add_dem_color_20260710.tar.gz
+これで、
+public_html/allmap/layers/dem/dem_color_20260710/
+が追加され、catalog.json も更新されます。
+
+8. Apache側で置く .htaccess
+public_html/allmap/.htaccess に、最低限これを置いておくとよいです。
+Options -Indexes
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType image/png "access plus 30 days"
+  ExpiresByType image/jpeg "access plus 30 days"
+  ExpiresByType application/json "access plus 1 minutes"
+  ExpiresByType text/javascript "access plus 1 days"
+  ExpiresByType text/css "access plus 1 days"
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "\.(png|jpg|jpeg)$">
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+  <FilesMatch "\.(json)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>
+意味はこうです。
+    • タイル画像は長めにキャッシュする 
+    • catalog.json はすぐ更新が反映されるようにする 
+    • ディレクトリ一覧を見せない 
+特に catalog.json をキャッシュしすぎると、新しいレイヤーを追加してもブラウザに反映されないことがあります。
+
+9. 確かめたい前提条件
+はい、いくつか確認しておくべき前提条件があります。
+A. タイルのパス規則
+現在のタイルが本当にこうなっているか。
+tiles/1/0/0.png
+tiles/2/0/0.png
+tiles/2/1/0.png
+...
+つまり、
+{z}/{x}/{y}.png
+形式なのか、それとも、
+{z}/{y}/{x}.png
+形式なのか。
+これは最重要です。
+B. ズームレベルの番号
+「レベル1からレベル8、または9」とのことですが、実際にフォルダ名が、
+1
+2
+3
+...
+9
+なのか、
+0
+1
+2
+...
+8
+なのか確認が必要です。
+Google Maps系は一般には z=0 から始まることが多いですが、自作なら z=1 始まりでも問題ありません。
+ただし、JavaScript側と catalog.json の minZoom / maxZoom を合わせる必要があります。
+C. 画像形式
+全部 .png かどうか。
+もし将来、
+.png
+.webp
+.jpg
+が混在するなら、catalog.json の tileUrl に拡張子まで書く設計で問題ありません。
+D. LC、VE、ZE、XEの名前
+表記を統一した方がよいです。
+現在は、
+gm_lc
+gm_xe
+があります。
+一方で文章では、
+ZEデータ
+VEデータ
+という表記が出ています。
+今後のために、どれを正式名にするか決めた方がよいです。
+例：
+dem
+lc
+ve
+または、
+dem
+lc
+xe
+ここが揺れると、あとでフォルダ名・カタログ名・画面表示名が混乱します。
+E. Apacheで .htaccess が有効か
+Xserverの通常レンタルサーバーなら多くの場合 .htaccess は使えますが、VPSで自前Apacheの場合は設定によります。
+確認したいのは、
+AllowOverride All
+または少なくとも .htaccess が有効になっているかです。
+ただし、.htaccess が使えなくても地図表示自体は可能です。
+キャッシュ制御が少しやりにくくなるだけです。
+F. サーバー上で解凍できるか
+WinSCPで転送できても、サーバー側で解凍できるかは別です。
+確認したいのは、
+sshで入れるか
+tar が使えるか
+unzip が使えるか
+です。
+SSHが使えない場合は、Xserverのファイルマネージャーや管理画面でzip解凍できるかを確認します。
+G. サーバー容量とファイル数制限
+タイル地図は、容量よりも ファイル数 が問題になることがあります。
+確認したいのは、
+総容量
+総ファイル数
+サーバーのinode制限
+です。
+特にズームレベルを増やすと、タイル数は急増します。
+レベル9から10、11へ増やすと、かなり増えます。
+
+10. 最終的なおすすめ
+あなたの場合は、こうするのが一番よいです。
+public_html/allmap/
+  index.html
+  app/
+  catalog.json
+  layers/
+    dem/
+      standard_20260506/
+      dem_8bit_20260506/
+      dem_color_20260506/
+    lc/
+      gm_lc_20260506/
+    ve/
+      gm_xe_20260506/
+そして、今後は必ず、
+layers/種類/データ名/tiles/ズーム/x/y.png
+に統一する。
+JavaScriptは、直接 tiles_color などを読みに行かず、必ず catalog.json を読んで、そこに書かれた tileUrl を使う。
+この形にしておけば、あとでDEM系・LC系・VE系の新データを追加しても、サーバーにフォルダを置いて、catalog.jsonに1項目足すだけで済みます。
+dem、lc、xeの階層は、0/0/0の階層構造です。国土地理院がはいふしてるデータをもとにしています。z/y/xと思いますがかくしんはありません。しらべてください。「tiles_8bit」になっています。tilersはタイプミスです。正式名は「ve」です。xeはタイプミスです。それでApacheで .htaccess は有効です。以上をお伝えします。それでもんだいかければ、「最終的なおすすめ」について検討します。まずは、前定条件の確認をお願いします。
+調べた結果、ここは重要な修正があります。国土地理院系は「XYZ方式」なので、URL・配置テンプレートは原則 {z}/{x}/{y}.png です。0/0/0 だけでは判定できないので、表示プログラム側の指定をこの前提に合わせます。
+Thought for 14s
+前提条件を確認しました。いまの情報で、大きな問題はありません。ただし、1点だけ修正が必要です。
+確認結果
+1. 国土地理院系タイルの基本形式
+国土地理院は、地理院タイルを XYZ方式 として提供しています。仕様ページでは、地図全体をズームレベル0で1枚の正方形タイルとし、ズームが1上がるごとに縦横2倍ずつ分割すると説明されています。また、タイル座標は左上を原点 (0,0) とし、東方向がX正方向、南方向がY正方向です。タイルサイズは256×256です。
+そして、地理院タイルのURL命名規則は {z}/{x}/{y} です。国土地理院の仕様ページにも「{z}/{x}/{y}の形式」とあり、e-Gov掲載の標準地図テンプレートURLも https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png です。
+したがって、こちらで採用すべき前提はこれです。
+{z}/{x}/{y}.png
+つまり、
+0/0/0.png
+1/0/0.png
+1/0/1.png
+1/1/0.png
+1/1/1.png
+のような構造です。
+
+2. あなたの訂正を反映した前提
+以下で確定してよいです。
+分類名：
+dem
+lc
+ve
+誤：xe
+正：ve
+誤：tilrs_8bit
+正：tiles_8bit
+現在のローカルフォルダ名は、おそらく次でよいです。
+tiles
+tiles_8bit
+tiles_color
+gm_lc
+gm_ve
+もし現在まだ gm_xe というフォルダ名になっているなら、公開用の整理時に gm_ve に直す方がよいです。
+
+3. サーバー前提
+以下も問題ありません。
+接続：WinSCPで接続可能
+サーバー：Apache
+.htaccess：有効
+この条件なら、次の設計が使えます。
+public_html/
+  allmap/
+    index.html
+    app/
+    catalog.json
+    .htaccess
+    layers/
+      dem/
+      lc/
+      ve/
+.htaccess が有効なので、タイル画像は長期キャッシュ、catalog.json は短期キャッシュ、という制御ができます。これは追加データ運用に向いています。
+
+4. まだ確認したい前提条件
+残る確認は、ほぼこの3つだけです。
+A. 実際の拡張子
+タイル画像が全部 .png かどうか。
+.png
+で統一なら、問題ありません。
+もし一部に、
+.jpg
+.webp
+があるなら、catalog.json の tileUrl を個別に変えます。
+
+B. ズームレベルの範囲
+実フォルダが、
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+なのか、
+1
+2
+3
+4
+5
+6
+7
+8
+9
+なのかを確認してください。
+国土地理院方式としては、ズームレベル0から始まるのが自然です。国土地理院仕様でも、地球全体1枚をズームレベル0と定義しています。
+確認コマンドはローカルでこれです。
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap"
+ls .\tiles
+ls .\tiles_8bit
+ls .\tiles_color
+ls .\gm_lc
+ls .\gm_ve
+
+C. gm_ve の実フォルダ名
+あなたの文章では「正式名はve」と確定しました。
+ただし手元フォルダがまだ gm_xe のままなら、公開用フォルダに移すときに名前を直します。
+現状確認：
+cd "D:\userdata\kakuno\deskto\910世界標高地図データallmap"
+ls
+もしこうなら：
+gm_xe
+公開用ではこうします。
+layers/ve/gm_ve_20260506/tiles/
+
+現時点の確定前提
+この前提で「最終的なおすすめ」を検討してよいです。
+タイル方式：XYZ方式
+URL形式：{z}/{x}/{y}.png
+タイルサイズ：256×256
+ズーム開始：原則 0
+分類：dem / lc / ve
+標高8bitフォルダ名：tiles_8bit
+VE表記：ve
+サーバー：Apache
+.htaccess：有効
+転送：WinSCP使用可能
+したがって、次の最終配置で進められます。
+public_html/
+  allmap/
+    index.html
+    app/
+      map.js
+      style.css
+    catalog.json
+    .htaccess
+    layers/
+      dem/
+        standard_20260506/
+          tiles/
+            0/
+            1/
+            ...
+            9/
+        dem_8bit_20260506/
+          tiles/
+            0/
+            1/
+            ...
+            9/
+        dem_color_20260506/
+          tiles/
+            0/
+            1/
+            ...
+            9/
+      lc/
+        gm_lc_20260506/
+          tiles/
+            0/
+            1/
+            ...
+            9/
+      ve/
+        gm_ve_20260506/
+          tiles/
+            0/
+            1/
+            ...
+            9/
+この形で問題ありません。次は、この前提に基づいて 公開用フォルダの作成手順、robocopyによる移動、catalog.json完成版、.htaccess完成版、追加データ時の手順 まで一気に固めるのがよいです。
+「実フォルダは、 0 1 2 3 4 5 6 7 8 9」」」」のように、０始まりです。
+Thought for 7s
+確認できました。これで前提条件はかなりきれいに確定です。
+確定前提
+タイル方式：XYZ方式
+階層形式：{z}/{x}/{y}.png
+ズーム階層：0 ～ 9
+タイルサイズ：256 × 256
+分類：dem / lc / ve
+8bit標高フォルダ名：tiles_8bit
+ve表記：ve
+サーバー：Apache
+.htaccess：有効
+転送：WinSCP 使用可能
+つまり、タイルURLの基本形は必ずこれで設計します。
+layers/dem/データ名/tiles/{z}/{x}/{y}.png
+layers/lc/データ名/tiles/{z}/{x}/{y}.png
+layers/ve/データ名/tiles/{z}/{x}/{y}.png
+たとえば：
+layers/dem/dem_color_20260506/tiles/9/312/178.png
+layers/lc/gm_lc_20260506/tiles/9/312/178.png
+layers/ve/gm_ve_20260506/tiles/9/312/178.png
+これで「最終的なおすすめ」は成立します
+公開用の最終配置は、次で問題ありません。
+public_html/
+  allmap/
+    index.html
+    catalog.json
+    .htaccess
+    app/
+      map.js
+      style.css
+    layers/
+      dem/
+        standard_20260506/
+          tiles/
+            0/
+            1/
+            2/
+            ...
+            9/
+        dem_8bit_20260506/
+          tiles/
+            0/
+            1/
+            ...
+            9/
+        dem_color_20260506/
+          tiles/
+            0/
+            1/
+            ...
+            9/
+      lc/
+        gm_lc_20260506/
+          tiles/
+            0/
+            1/
+            ...
+            9/
+      ve/
+        gm_ve_20260506/
+          tiles/
+            0/
+            1/
+            ...
+            9/
+現在フォルダとの対応
+ローカルの現在フォルダ：
+D:\userdata\kakuno\deskto\910世界標高地図データallmap\
+  tiles
+  tiles_8bit
+  tiles_color
+  gm_lc
+  gm_ve
+公開用ではこう収納します。
+tiles        → layers/dem/standard_20260506/tiles
+tiles_8bit   → layers/dem/dem_8bit_20260506/tiles
+tiles_color  → layers/dem/dem_color_20260506/tiles
+gm_lc        → layers/lc/gm_lc_20260506/tiles
+gm_ve        → layers/ve/gm_ve_20260506/tiles
+catalog.json のズーム指定
+0 始まりなので、各レイヤーはこう書きます。
+{
+  "id": "dem_color_20260506",
+  "type": "dem",
+  "name": "標高カラー 2026-05-06",
+  "minZoom": 0,
+  "maxZoom": 9,
+  "tileSize": 256,
+  "tileUrl": "layers/dem/dem_color_20260506/tiles/{z}/{x}/{y}.png"
+}
+今後、新しいデータを足すときも、必ず：
+"minZoom": 0,
+"maxZoom": 9
+または、レベル10まで作ったなら：
+"minZoom": 0,
+"maxZoom": 10
+にします。
+重要な結論
+この前提なら、今後の追加はこうなります。
+    1. 新しいDEM・LC・VEデータをタイル化する 
+    2. layers/dem/新データ名/tiles/0～9/... の形に置く 
+    3. catalog.json に1項目追加する 
+    4. ブラウザ側は catalog.json を読んで自動的に候補に出す 
+つまり、JavaScript本体を書き換えずに、データ追加だけで増やせる構成にできます。
+この前提で次は、実際に使う 完成版のフォルダ作成コマンド、robocopyコマンド、catalog.json、.htaccess、アップロード手順 を作れます。

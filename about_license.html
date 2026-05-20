@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>解説とライセンス - 統合マップビューア</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 30px 20px;
+            background: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        
+        h2 {
+            color: #34495e;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-left: 15px;
+            border-left: 5px solid #4CAF50;
+        }
+        
+        h3 {
+            color: #555;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+        
+        p {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        
+        .highlight {
+            background: #e8f5e9;
+            padding: 20px;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+            margin: 20px 0;
+        }
+        
+        .data-source {
+            background: #f9f9f9;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+            border-left: 3px solid #2196F3;
+        }
+        
+        .data-source h4 {
+            margin: 0 0 10px 0;
+            color: #2196F3;
+        }
+        
+        .data-source ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        
+        .data-source li {
+            margin: 5px 0;
+        }
+        
+        .attribution {
+            background: #fff3cd;
+            padding: 20px;
+            border-radius: 5px;
+            border: 2px solid #ffc107;
+            margin: 25px 0;
+        }
+        
+        .attribution strong {
+            color: #856404;
+            font-size: 16px;
+        }
+
+        .policy-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0 25px;
+            font-size: 14px;
+        }
+
+        .policy-table th,
+        .policy-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            vertical-align: top;
+            text-align: left;
+        }
+
+        .policy-table th {
+            background: #eef6ff;
+            color: #1f4e79;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .feature-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            border-top: 3px solid #4CAF50;
+        }
+        
+        .feature-card h4 {
+            margin: 0 0 10px 0;
+            color: #4CAF50;
+        }
+        
+        ul {
+            color: #555;
+        }
+        
+        .close-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        .close-button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <button class="close-button" onclick="window.close()">✕ 閉じる</button>
+    
+    <div class="container">
+        <h1>🗺️ 統合マップビューア - 解説とライセンス</h1>
+        
+        <h2>📖 解説</h2>
+        
+        <p>
+            本マップビューアは、地球規模の地形・土地利用データを統合的に可視化・分析するためのツールです。
+            4つの異なるデータレイヤーを重ね合わせることで、地理的特徴の多面的な理解を可能にします。
+        </p>
+        
+        <h3>🎯 用途・目的</h3>
+        
+        <div class="features">
+            <div class="feature-card">
+                <h4>地形分析</h4>
+                <p>標高データから地形の起伏や山岳地帯、平野部の分布を把握</p>
+            </div>
+            <div class="feature-card">
+                <h4>土地利用調査</h4>
+                <p>森林、農地、都市などの土地被覆状況を確認</p>
+            </div>
+            <div class="feature-card">
+                <h4>植生評価</h4>
+                <p>樹木被覆率から植生の豊かさや分布を分析</p>
+            </div>
+            <div class="feature-card">
+                <h4>環境研究</h4>
+                <p>標高と土地被覆の関係性から環境特性を考察</p>
+            </div>
+        </div>
+        
+        <h3>📊 データレイヤー構成</h3>
+        
+        <div class="data-source">
+            <h4>1. 標高（モノクロ）</h4>
+            <ul>
+                <li>地形の起伏を白黒階調で表現</li>
+                <li>他のレイヤーのベースマップとして最適</li>
+                <li>解像度: 15秒角（約500m）</li>
+            </ul>
+        </div>
+        
+        <div class="data-source">
+            <h4>2. 標高（カラー段彩）</h4>
+            <ul>
+                <li>標高を色分けして直感的に表現（0m～9,000m）</li>
+                <li>低地は緑、高地は白で表示</li>
+                <li>標高帯ごとの分布を視覚的に把握</li>
+            </ul>
+        </div>
+        
+        <div class="data-source">
+            <h4>3. 土地被覆（GLCNMO）</h4>
+            <ul>
+                <li>20分類の土地被覆データ（森林、農地、都市など）</li>
+                <li>MODISデータ（2008年版）を使用</li>
+                <li>地球全体の土地利用状況を把握</li>
+            </ul>
+        </div>
+        
+        <div class="data-source">
+            <h4>4. 植生（樹木被覆率）</h4>
+            <ul>
+                <li>樹木被覆率を0～100%で表現</li>
+                <li>濃い緑: 豊かな植生、茶色: 疎植生</li>
+                <li>森林の分布や密度を評価</li>
+            </ul>
+        </div>
+        
+        <div class="highlight">
+            <strong>💡 推奨される使い方</strong>
+            <ul>
+                <li><strong>土地利用分析:</strong> モノクロ標高（ベース）+ 土地被覆レイヤーを半透明で重ねる</li>
+                <li><strong>植生と地形の関係:</strong> モノクロ標高 + 植生レイヤーで標高帯ごとの植生分布を把握</li>
+                <li><strong>標高確認:</strong> カラー段彩標高のみで標高帯を視覚的に理解</li>
+            </ul>
+        </div>
+        
+        <h2>📜 ライセンス・データソース</h2>
+        
+        <div class="attribution">
+            <strong>⚠️ 重要: 出典表示について</strong>
+            <p style="margin-top: 10px;">
+                本データを使用する際は、以下の出典を明記する必要があります。
+            </p>
+        </div>
+        
+        <h3>標高データ</h3>
+        <p><strong>データソース:</strong> GMTED2010（Global Multi-resolution Terrain Elevation Data 2010）</p>
+        <p><strong>提供元:</strong> 国土地理院</p>
+        <p><strong>解像度:</strong> 15秒角（約500m間隔）</p>
+        <p><strong>座標系:</strong> WGS84</p>
+        <p><strong>必要な出典表示:</strong></p>
+        <div class="highlight">
+            「<strong>国土地理院</strong>」
+        </div>
+        
+        <h3>土地被覆データ（GLCNMO - Global Land Cover by National Mapping Organizations）</h3>
+        <p><strong>データソース:</strong> MODISデータ 2008年版（Terra および Aqua 衛星）</p>
+        <p><strong>開発:</strong> ISCGM事務局、国土地理院（GSI）、千葉大学、および各国地理情報機関</p>
+        <p><strong>解像度:</strong> 15秒角（約500m間隔）</p>
+        <p><strong>分類:</strong> 20種類の土地被覆クラス</p>
+        <p><strong>必要な出典表示:</strong></p>
+        <div class="highlight">
+            「<strong>国土地理院、千葉大学、および協力機関</strong>」
+        </div>
+        <p><strong>参考文献:</strong></p>
+        <ul>
+            <li>Tateishi, R., et al. (2014). Production of Global Land Cover Data - GLCNMO2008, Journal of Geography and Geology, Vol. 6, No. 3, 99-122</li>
+        </ul>
+        
+        <h3>植生データ（樹木被覆率 - Percent Tree Cover）</h3>
+        <p><strong>データソース:</strong> MODISデータ 2008年版（Terra および Aqua 衛星）</p>
+        <p><strong>開発:</strong> ISCGM事務局、国土地理院（GSI）、千葉大学</p>
+        <p><strong>解像度:</strong> 15秒角（約500m間隔）</p>
+        <p><strong>表現:</strong> 樹木被覆率 0～100%</p>
+        <p><strong>必要な出典表示:</strong></p>
+        <div class="highlight">
+            「<strong>国土地理院、千葉大学および協力機関</strong>」
+        </div>
+        
+        <h3>利用規約</h3>
+        <ul>
+            <li>全てのデータにおいて、製品・論文等への使用時に出典の明記が必要です</li>
+            <li>商用利用や論文等への引用の際は、各データの詳細情報から利用規約を確認してください</li>
+            <li>本ビューアは教育・研究目的での利用を想定しています</li>
+        </ul>
+
+        <h3>実運用でのタイル利用方針</h3>
+        <p>
+            GSI標準地図などの地理院タイルを背景として使う場合と、第三者の地図タイルを保存して配信する場合は扱いが異なります。
+            本番運用では、背景地図・第三者地図・独自ゲームレイヤーを分けて管理してください。
+        </p>
+        <table class="policy-table">
+            <tr>
+                <th>利用形態</th>
+                <th>推奨運用</th>
+                <th>注意点</th>
+            </tr>
+            <tr>
+                <td>GSI地理院タイルを背景表示</td>
+                <td>GSI公式URLからリアルタイムに読み込み、画面上に出典を表示します。</td>
+                <td>地理院タイル一覧では、リアルタイム読込は出典明示で申請不要と案内されています。標準地図は日本全国と周辺地域のズームレベル5～18です。</td>
+            </tr>
+            <tr>
+                <td>GSIタイルを保存・加工・合成して配信</td>
+                <td>原則として避けます。必要な場合は測量成果の複製・使用承認の要否を確認します。</td>
+                <td>標準地図など一部の地理院タイルは基本測量成果です。Xserver等へコピーして再配信する運用は、単なる背景表示とは別扱いになります。</td>
+            </tr>
+            <tr>
+                <td>他国の地図当局タイル</td>
+                <td>まず公式タイルサービス、WMTS、XYZ、APIを直接読み込みます。</td>
+                <td>Xserverへ置く場合は、複製・再配信・キャッシュ・商用利用・ゲーム利用が明示的に許されているか確認します。</td>
+            </tr>
+            <tr>
+                <td>独自の建物・島・イベント</td>
+                <td>自作レイヤーとしてXserverに配置します。</td>
+                <td>背景地図と1枚のPNGに合成せず、別レイヤーとして重ねると権利関係を整理しやすくなります。</td>
+            </tr>
+        </table>
+        <div class="highlight">
+            表示例：背景地図：<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル</a> ／ 地理院タイルにゲーム用の架空地物を追記して掲載
+        </div>
+        
+        <h3>協力機関（土地被覆・植生データ ver.2）</h3>
+        <p>以下の国と地域がトレーニングデータと検証の提供に協力：</p>
+        <p style="font-size: 14px; color: #666;">
+            ボツワナ、チリ、コートジボワール、エルサルバドル、日本、マカオ、マケドニア、
+            メキシコ、オマーン、パキスタン、セルビア、スリランカ、タイ、アメリカ合衆国 ほか
+        </p>
+        
+        <h2>🔗 詳細情報</h2>
+        <p>各データの詳細情報と最新の利用規約については、国土地理院の地球地図全球版ウェブサイトをご参照ください：</p>
+        <ul>
+            <li><a href="https://www.gsi.go.jp/kankyochiri/gm_global.html" target="_blank">地球地図全球版 | 国土地理院</a></li>
+            <li><a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">地理院タイル一覧 | 国土地理院</a></li>
+            <li><a href="https://www.gsi.go.jp/LAW/2930-index.html" target="_blank">国土地理院の測量成果の利用手続 | 国土地理院</a></li>
+        </ul>
+        
+        <div style="margin-top: 50px; padding-top: 20px; border-top: 2px solid #ddd; text-align: center; color: #888; font-size: 14px;">
+            <p>統合マップビューア © 2026</p>
+            <p>Data Source: Geospatial Information Authority of Japan, Chiba University, and Collaborating Organizations</p>
+        </div>
+    </div>
+</body>
+</html>

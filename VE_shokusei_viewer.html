@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>植生マップビューア</title>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            overflow: hidden;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: move;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            min-width: 200px;
+        }
+        
+        .controls h3 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .control-group {
+            margin: 10px 0;
+        }
+        
+        .control-group label {
+            display: block;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        button {
+            padding: 8px 16px;
+            margin: 5px 5px 5px 0;
+            border: none;
+            background: #4CAF50;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            font-family: monospace;
+            color: #333;
+        }
+        
+        #zoom-slider {
+            width: 180px;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .legend h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+        
+        .legend-gradient {
+            width: 100%;
+            height: 150px;
+            background: linear-gradient(to bottom, 
+                rgb(0, 100, 0),
+                rgb(180, 200, 80),
+                rgb(160, 120, 80)
+            );
+            border: 1px solid #ccc;
+            margin: 10px 0;
+            position: relative;
+        }
+        
+        .legend-label {
+            font-size: 11px;
+            margin: 3px 0;
+        }
+        
+        .legend-special {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 11px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #ccc;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas"></canvas>
+    </div>
+    
+    <div class="controls">
+        <h3>🌿 植生マップ</h3>
+        <div class="control-group">
+            <label>ズームレベル: <span id="zoom-label">1</span></label>
+            <input type="range" id="zoom-slider" min="1" max="9" value="1" step="1">
+        </div>
+        <div class="control-group">
+            <button id="zoom-in">+</button>
+            <button id="zoom-out">-</button>
+            <button id="reset">リセット</button>
+        </div>
+    </div>
+    
+    <div class="info" id="info">
+        タイル: 読み込み中...
+    </div>
+    
+    <div class="legend">
+        <h4>植生指標</h4>
+        <div class="legend-gradient"></div>
+        <div class="legend-label">▲ 高植生 (100)</div>
+        <div class="legend-label" style="margin-left: 20px;">↑ 濃い緑 = 豊かな植生</div>
+        <div class="legend-label" style="margin: 15px 0;">│ 中程度 (50)</div>
+        <div class="legend-label" style="margin-left: 20px;">↓ 黄緑 = 草地・疎林</div>
+        <div class="legend-label">▼ 低植生 (1)</div>
+        <div class="legend-label" style="margin-left: 20px;">  茶色 = 裸地に近い</div>
+        
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+            <div class="legend-special">
+                <div class="legend-color" style="background: rgb(180,180,180)"></div>
+                <div>データなし</div>
+            </div>
+            <div class="legend-special">
+                <div class="legend-color" style="background: rgb(50,100,150)"></div>
+                <div>海</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('container');
+        const info = document.getElementById('info');
+        const zoomSlider = document.getElementById('zoom-slider');
+        const zoomLabel = document.getElementById('zoom-label');
+        
+        const TILE_SIZE = 256;
+        let currentZoom = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+        let isDragging = false;
+        let lastX = 0;
+        let lastY = 0;
+        let mouseX = 0;
+        let mouseY = 0;
+        
+        const tileCache = new Map();
+        
+        function getTileCount(zoom) {
+            const tilesX = Math.pow(2, zoom);
+            const tilesY = zoom === 0 ? 1 : Math.pow(2, zoom - 1);
+            return { tilesX, tilesY };
+        }
+        
+        function resizeCanvas() {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            if (offsetX === 0 && offsetY === 0) {
+                const { tilesX, tilesY } = getTileCount(currentZoom);
+                offsetX = (canvas.width - tilesX * TILE_SIZE) / 2;
+                offsetY = (canvas.height - tilesY * TILE_SIZE) / 2;
+            }
+            drawMap();
+        }
+        
+        function loadTile(zoom, x, y) {
+            const key = `${zoom}/${x}/${y}`;
+            
+            if (tileCache.has(key)) {
+                return tileCache.get(key);
+            }
+            
+            const img = new Image();
+            // file:// プロトコルでは crossOrigin は不要（CORSエラーの原因）
+            const promise = new Promise((resolve, reject) => {
+                img.onload = () => resolve(img);
+                img.onerror = () => {
+                    console.warn(`タイル読み込み失敗: ${key}`);
+                    resolve(null);
+                };
+            });
+            
+            img.src = `gm_ve/${zoom}/${x}/${y}.png`;
+            tileCache.set(key, promise);
+            
+            return promise;
+        }
+        
+        async function drawMap() {
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            
+            let loadedCount = 0;
+            let totalTiles = 0;
+            
+            for (let y = 0; y < tilesY; y++) {
+                for (let x = 0; x < tilesX; x++) {
+                    totalTiles++;
+                    const screenX = offsetX + x * TILE_SIZE;
+                    const screenY = offsetY + y * TILE_SIZE;
+                    
+                    if (screenX + TILE_SIZE >= 0 && screenX < canvas.width &&
+                        screenY + TILE_SIZE >= 0 && screenY < canvas.height) {
+                        
+                        const tilePromise = loadTile(currentZoom, x, y);
+                        tilePromise.then(img => {
+                            if (img) {
+                                ctx.drawImage(img, screenX, screenY, TILE_SIZE, TILE_SIZE);
+                                loadedCount++;
+                                updateInfo(loadedCount, totalTiles);
+                            }
+                        });
+                    }
+                }
+            }
+            
+            updateInfo(loadedCount, totalTiles);
+        }
+        
+        function updateInfo(loaded, total) {
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            info.textContent = `ズーム: ${currentZoom} | タイル: ${tilesX}×${tilesY} (${total}個) | 読み込み: ${loaded}/${total}`;
+        }
+        
+        function setZoom(zoom, centerX = null, centerY = null) {
+            zoom = Math.max(1, Math.min(9, zoom));
+            
+            if (zoom === currentZoom) return;
+            
+            if (centerX === null) centerX = canvas.width / 2;
+            if (centerY === null) centerY = canvas.height / 2;
+            
+            const oldTiles = getTileCount(currentZoom);
+            const oldMapWidth = oldTiles.tilesX * TILE_SIZE;
+            const oldMapHeight = oldTiles.tilesY * TILE_SIZE;
+            
+            const normalizedX = (centerX - offsetX) / oldMapWidth;
+            const normalizedY = (centerY - offsetY) / oldMapHeight;
+            
+            currentZoom = zoom;
+            
+            const newTiles = getTileCount(zoom);
+            const newMapWidth = newTiles.tilesX * TILE_SIZE;
+            const newMapHeight = newTiles.tilesY * TILE_SIZE;
+            
+            offsetX = centerX - normalizedX * newMapWidth;
+            offsetY = centerY - normalizedY * newMapHeight;
+            
+            zoomSlider.value = zoom;
+            zoomLabel.textContent = zoom;
+            
+            document.getElementById('zoom-out').disabled = (zoom === 1);
+            document.getElementById('zoom-in').disabled = (zoom === 9);
+            
+            drawMap();
+        }
+        
+        function reset() {
+            const { tilesX, tilesY } = getTileCount(currentZoom);
+            offsetX = (canvas.width - tilesX * TILE_SIZE) / 2;
+            offsetY = (canvas.height - tilesY * TILE_SIZE) / 2;
+            drawMap();
+        }
+        
+        // イベントリスナー
+        zoomSlider.addEventListener('input', (e) => {
+            setZoom(parseInt(e.target.value));
+        });
+        
+        document.getElementById('zoom-in').addEventListener('click', () => {
+            setZoom(currentZoom + 1, mouseX, mouseY);
+        });
+        
+        document.getElementById('zoom-out').addEventListener('click', () => {
+            setZoom(currentZoom - 1, mouseX, mouseY);
+        });
+        
+        document.getElementById('reset').addEventListener('click', reset);
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+            
+            if (isDragging) {
+                const deltaX = e.clientX - lastX;
+                const deltaY = e.clientY - lastY;
+                offsetX += deltaX;
+                offsetY += deltaY;
+                lastX = e.clientX;
+                lastY = e.clientY;
+                drawMap();
+            }
+        });
+        
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastX = e.clientX;
+            lastY = e.clientY;
+            canvas.style.cursor = 'grabbing';
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            canvas.style.cursor = 'move';
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+            isDragging = false;
+            canvas.style.cursor = 'move';
+        });
+        
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const zoomCenterX = e.clientX - rect.left;
+            const zoomCenterY = e.clientY - rect.top;
+            
+            if (e.deltaY < 0) {
+                setZoom(currentZoom + 1, zoomCenterX, zoomCenterY);
+            } else {
+                setZoom(currentZoom - 1, zoomCenterX, zoomCenterY);
+            }
+        });
+        
+        window.addEventListener('resize', resizeCanvas);
+        
+        resizeCanvas();
+        
+        console.log('植生マップビューア - 初期化完了');
+    </script>
+</body>
+</html>
